@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: japanese-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: DINGTALK_APP_KEY
+        sync: false
+      - key: DINGTALK_APP_SECRET
+        sync: false
+      - key: DINGTALK_AGENT_ID
+        sync: false
+      - key: DINGTALK_WEBHOOK_URL
+        sync: false
+      - key: DINGTALK_WEBHOOK_SECRET
+        sync: false
+      - key: BOT_NAME
+        value: しんちゃんの日本語先生
+      - key: SERVER_URL
+        value: https://japanese-bot.onrender.com

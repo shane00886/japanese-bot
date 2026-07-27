@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>小新的日语教室</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+<!-- ═══ 顶部栏 ═══ -->
+<div class="top-bar">
+    <h1>🎌 小新的日语教室</h1>
+    <div class="subtitle">和しんちゃん一起学日语！</div>
+</div>
+
+<!-- ═══ 页面容器 ═══ -->
+<div class="container">
+
+    <!-- ── 首页 ── -->
+    <div class="page active" id="page-home">
+        <div class="hero">
+            <div class="avatar">🎒</div>
+            <h2>欢迎回来，<span id="user-name">小忍者</span>！</h2>
+            <p>今天也要加油哦！🔥</p>
+        </div>
+
+        <!-- 统计 -->
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="icon">🎖️</div>
+                <div class="value" id="stat-level">N5</div>
+                <div class="label">等级</div>
+            </div>
+            <div class="stat-item">
+                <div class="icon">💎</div>
+                <div class="value" id="stat-xp">0</div>
+                <div class="label">经验值</div>
+            </div>
+            <div class="stat-item">
+                <div class="icon">🔥</div>
+                <div class="value" id="stat-streak">0</div>
+                <div class="label">连续天数</div>
+            </div>
+        </div>
+
+        <!-- 经验条 -->
+        <div class="card">
+            <div style="display:flex;justify-content:space-between;font-size:13px;">
+                <span>🏅 <span id="level-name">见习忍者</span></span>
+                <span id="xp-text">0 / 100</span>
+            </div>
+            <div class="xp-bar-bg">
+                <div class="xp-bar-fill" id="xp-bar" style="width:0%"></div>
+            </div>
+        </div>
+
+        <!-- 今日任务 -->
+        <div class="mission-card" onclick="navigate('map')">
+            <h3>📋 今日任务</h3>
+            <div class="title" id="today-lesson">冒险开始</div>
+            <div class="meta" id="today-chapter">第1章 · 自我介绍</div>
+            <div class="duration">⏱ 大约 <span id="today-duration">12</span> 分钟</div>
+        </div>
+
+        <!-- 闯关入口 -->
+        <div class="card">
+            <h3 style="margin-bottom:12px;">🎯 今日闯关</h3>
+            <ul class="quest-list">
+                <li class="quest-item" onclick="navigate('listen')">
+                    <div class="quest-icon listen">🎧</div>
+                    <div class="quest-info">
+                        <div class="name">👂 听力挑战</div>
+                        <div class="desc">听一听，选答案 · 5 题</div>
+                    </div>
+                    <span style="color:var(--primary);font-size:20px;font-weight:bold;">▶</span>
+                </li>
+                <li class="quest-item" onclick="navigate('game')">
+                    <div class="quest-icon vocab">⚡</div>
+                    <div class="quest-info">
+                        <div class="name">⚡ 单词大作战</div>
+                        <div class="desc">看日文选中文 · 8 题</div>
+                    </div>
+                    <span style="color:var(--primary);font-size:20px;font-weight:bold;">▶</span>
+                </li>
+                <li class="quest-item" onclick="navigate('map')">
+                    <div class="quest-icon speak">🗺️</div>
+                    <div class="quest-info">
+                        <div class="name">🗺️ 学习地图</div>
+                        <div class="desc">看看自己学到哪了</div>
+                    </div>
+                    <span style="color:var(--primary);font-size:20px;font-weight:bold;">▶</span>
+                </li>
+            </ul>
+        </div>
+
+        <!-- 小新语录 -->
+        <div class="card" style="background:linear-gradient(135deg,#FFF8E1,#FFECB3);">
+            <div style="font-size:13px;color:#795548;">🎬 蜡笔小新说</div>
+            <div style="margin-top:8px;font-size:15px;" id="shinchan-quote">
+                「我是新之助！请多多关照！」
+            </div>
+        </div>
+    </div>
+
+    <!-- ── 学习地图 ── -->
+    <div class="page" id="page-map">
+        <h2 style="margin-bottom:16px;">🗺️ 学习地图</h2>
+        <div id="lesson-list"></div>
+        <div style="margin-top:4px;font-size:13px;color:var(--text-light);text-align:center;">
+            进度：<span id="map-progress">0%</span>
+        </div>
+    </div>
+
+    <!-- ── 单词大作战 ── -->
+    <div class="page" id="page-game">
+        <div class="game-header">
+            <div class="game-score">⚡ 得分 <span id="game-score">0</span></div>
+            <div class="game-timer">⏱ <span id="game-timer">3:00</span></div>
+        </div>
+        <div id="game-area">
+            <div class="game-word">
+                <div class="japanese" id="game-jp">...</div>
+                <div class="kana" id="game-kana">...</div>
+            </div>
+            <div style="text-align:center;font-size:13px;color:var(--text-light);margin-bottom:12px;">
+                选出对应的中文意思 👇
+            </div>
+            <div class="game-options" id="game-options"></div>
+        </div>
+        <div id="game-result" class="result-page" style="display:none;">
+            <div class="big-icon">🎉</div>
+            <h2 id="result-title">太棒了！</h2>
+            <div class="sub" id="result-text">全部答对了！</div>
+            <div id="result-details"></div>
+            <button class="btn btn-primary" onclick="startGame()" style="margin-top:20px;">🔄 再来一次</button>
+            <button class="btn btn-outline" onclick="navigate('home')" style="margin-top:8px;">🏠 返回首页</button>
+        </div>
+    </div>
+
+    <!-- ── 听力挑战 ── -->
+    <div class="page" id="page-listen">
+        <h2 style="margin-bottom:16px;">🎧 听力挑战</h2>
+        <div id="listen-area">
+            <div class="listen-area">
+                <button class="play-btn" id="listen-play">▶</button>
+                <div style="font-size:14px;color:var(--text-light);margin-bottom:8px;">
+                    第 <span id="listen-num">1</span> / <span id="listen-total">5</span> 题
+                </div>
+                <div style="font-size:13px;color:var(--text-light);margin-bottom:12px;">
+                    选出这句话的中文意思 👇
+                </div>
+                <div class="game-options" id="listen-options"></div>
+            </div>
+        </div>
+        <div id="listen-result" class="result-page" style="display:none;">
+            <div class="big-icon">👂</div>
+            <h2 id="listen-result-title">挑战完成！</h2>
+            <div class="sub" id="listen-result-text">正确率 80%！</div>
+            <button class="btn btn-primary" onclick="startListen()" style="margin-top:20px;">🔄 再来一次</button>
+            <button class="btn btn-outline" onclick="navigate('home')" style="margin-top:8px;">🏠 返回首页</button>
+        </div>
+    </div>
+
+    <!-- ── 我的主页 ── -->
+    <div class="page" id="page-profile">
+        <h2 style="margin-bottom:16px;">🏅 我的主页</h2>
+        <div class="card" style="text-align:center;">
+            <div style="font-size:48px;">🎒</div>
+            <h3 id="profile-name">小忍者</h3>
+            <div style="color:var(--text-light);font-size:14px;" id="profile-level">N5 · 见习忍者</div>
+        </div>
+        <div class="card">
+            <h3 style="margin-bottom:12px;">🏆 成就墙</h3>
+            <div class="achievement-grid" id="achievements"></div>
+        </div>
+        <div class="card">
+            <h3 style="margin-bottom:12px;">📊 学习数据</h3>
+            <div id="learning-stats"></div>
+        </div>
+        <button class="btn btn-outline" onclick="location.reload()" style="margin-top:8px;">
+            🔄 重新加载
+        </button>
+    </div>
+
+</div>
+
+<!-- ═══ 底部导航 ═══ -->
+<nav class="bottom-nav">
+    <a class="nav-item active" href="#" onclick="navigate('home')" data-page="home">
+        <span class="nav-icon">🏠</span> 首页
+    </a>
+    <a class="nav-item" href="#" onclick="navigate('game')" data-page="game">
+        <span class="nav-icon">⚡</span> 单词
+    </a>
+    <a class="nav-item" href="#" onclick="navigate('listen')" data-page="listen">
+        <span class="nav-icon">🎧</span> 听力
+    </a>
+    <a class="nav-item" href="#" onclick="navigate('map')" data-page="map">
+        <span class="nav-icon">🗺️</span> 地图
+    </a>
+    <a class="nav-item" href="#" onclick="navigate('profile')" data-page="profile">
+        <span class="nav-icon">🏅</span> 我的
+    </a>
+</nav>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>

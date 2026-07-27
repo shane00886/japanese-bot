@@ -1,0 +1,472 @@
+/* ── しんちゃんの日本語学習 H5 ── */
+
+:root {
+    --primary: #FF6B35;
+    --primary-light: #FF8F5E;
+    --secondary: #FFD166;
+    --accent: #06D6A0;
+    --bg: #FFF8F0;
+    --card-bg: #FFFFFF;
+    --text: #2D3436;
+    --text-light: #636E72;
+    --success: #00B894;
+    --danger: #E17055;
+    --shadow: 0 4px 15px rgba(0,0,0,0.08);
+    --radius: 16px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, 'Hiragino Sans', 'Noto Sans SC', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 80px;
+    overflow-x: hidden;
+}
+
+/* ── 顶部导航 ── */
+.top-bar {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: white;
+    padding: 16px 20px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 10px rgba(255,107,53,0.3);
+}
+
+.top-bar h1 {
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.top-bar .subtitle {
+    font-size: 12px;
+    opacity: 0.85;
+    margin-top: 2px;
+}
+
+/* ── 容器 ── */
+.container {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+/* ── 卡片 ── */
+.card {
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow);
+    transition: transform 0.2s;
+}
+
+.card:active { transform: scale(0.98); }
+
+/* ── 按钮 ── */
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: 12px;
+    border: none;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-decoration: none;
+    width: 100%;
+}
+
+.btn:active { transform: scale(0.96); }
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    color: white;
+    box-shadow: 0 4px 12px rgba(255,107,53,0.3);
+}
+
+.btn-secondary {
+    background: var(--secondary);
+    color: var(--text);
+}
+
+.btn-accent {
+    background: var(--accent);
+    color: white;
+}
+
+.btn-outline {
+    background: transparent;
+    border: 2px solid var(--primary);
+    color: var(--primary);
+}
+
+.btn-small {
+    padding: 8px 16px;
+    font-size: 14px;
+    width: auto;
+}
+
+/* ── 英雄区域 ── */
+.hero {
+    text-align: center;
+    padding: 30px 0 20px;
+}
+
+.hero .avatar {
+    font-size: 64px;
+    margin-bottom: 12px;
+    animation: bounce 2s infinite;
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.hero h2 {
+    font-size: 22px;
+    margin-bottom: 4px;
+}
+
+.hero p {
+    color: var(--text-light);
+    font-size: 14px;
+}
+
+/* ── 统计卡片 ── */
+.stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.stat-item {
+    background: var(--card-bg);
+    border-radius: 12px;
+    padding: 14px 8px;
+    text-align: center;
+    box-shadow: var(--shadow);
+}
+
+.stat-item .icon { font-size: 24px; }
+.stat-item .value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+.stat-item .label { font-size: 11px; color: var(--text-light); margin-top: 2px; }
+
+/* ── XP 进度条 ── */
+.xp-bar-bg {
+    background: #F0F0F0;
+    border-radius: 10px;
+    height: 12px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+.xp-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--primary), var(--secondary));
+    border-radius: 10px;
+    transition: width 0.8s ease;
+}
+
+/* ── 今日任务卡片 ── */
+.mission-card {
+    background: linear-gradient(135deg, #FFF3E0, #FFE0B2);
+    border-radius: var(--radius);
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+}
+
+.mission-card::before {
+    content: '🎯';
+    position: absolute;
+    right: -10px;
+    top: -10px;
+    font-size: 80px;
+    opacity: 0.15;
+}
+
+.mission-card h3 { font-size: 16px; margin-bottom: 4px; }
+.mission-card .title { font-size: 20px; font-weight: 700; color: var(--primary); }
+.mission-card .meta { font-size: 13px; color: var(--text-light); margin: 8px 0; }
+.mission-card .duration {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: white;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 13px;
+}
+
+/* ── 闯关列表 ── */
+.quest-list {
+    list-style: none;
+}
+
+.quest-item {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 0;
+    border-bottom: 1px solid #F0F0F0;
+}
+
+.quest-item:last-child { border-bottom: none; }
+
+.quest-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+}
+
+.quest-icon.listen { background: #E3F2FD; }
+.quest-icon.speak { background: #FCE4EC; }
+.quest-icon.vocab { background: #E8F5E9; }
+
+.quest-info { flex: 1; }
+.quest-info .name { font-weight: 600; font-size: 15px; }
+.quest-info .desc { font-size: 12px; color: var(--text-light); }
+
+/* ── 学习地图 ── */
+.map-chapter {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: var(--card-bg);
+    box-shadow: var(--shadow);
+}
+
+.map-chapter.completed { opacity: 0.6; }
+.map-chapter.completed .ch-number { background: var(--success); color: white; }
+.map-chapter.current { border: 2px solid var(--primary); }
+.map-chapter.locked { opacity: 0.4; }
+
+.ch-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 14px;
+    background: #F0F0F0;
+    flex-shrink: 0;
+}
+
+.ch-info { flex: 1; }
+.ch-info .ch-title { font-weight: 600; font-size: 14px; }
+.ch-info .ch-desc { font-size: 12px; color: var(--text-light); }
+.ch-badge { font-size: 18px; }
+
+/* ── 单词快打游戏 ── */
+.game-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.game-score {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--primary);
+}
+
+.game-timer {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--danger);
+}
+
+.game-word {
+    text-align: center;
+    padding: 30px 20px;
+}
+
+.game-word .japanese {
+    font-size: 36px;
+    font-weight: 700;
+    margin-bottom: 4px;
+}
+
+.game-word .kana {
+    font-size: 18px;
+    color: var(--text-light);
+}
+
+.game-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.option-btn {
+    padding: 16px;
+    border-radius: 12px;
+    border: 2px solid #E0E0E0;
+    background: white;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-weight: 500;
+}
+
+.option-btn:active { transform: scale(0.95); }
+.option-btn.correct { border-color: var(--success); background: #E8F5E9; }
+.option-btn.wrong { border-color: var(--danger); background: #FFEBEE; animation: shake 0.3s; }
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+/* ── 听力挑战 ── */
+.listen-area {
+    text-align: center;
+    padding: 20px;
+}
+
+.play-btn {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), var(--primary-light));
+    border: none;
+    color: white;
+    font-size: 36px;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(255,107,53,0.4);
+    margin-bottom: 16px;
+    transition: transform 0.2s;
+}
+
+.play-btn:active { transform: scale(0.9); }
+.play-btn.playing { animation: pulse 1s infinite; }
+
+@keyframes pulse {
+    0%, 100% { box-shadow: 0 4px 20px rgba(255,107,53,0.4); }
+    50% { box-shadow: 0 4px 30px rgba(255,107,53,0.7); }
+}
+
+/* ── 结果页面 ── */
+.result-page {
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.result-page .big-icon { font-size: 64px; margin-bottom: 12px; }
+.result-page h2 { font-size: 24px; margin-bottom: 8px; }
+.result-page .sub { color: var(--text-light); margin-bottom: 20px; }
+
+/* ── 成就墙 ── */
+.achievement-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.achievement {
+    text-align: center;
+    padding: 16px 8px;
+    border-radius: 12px;
+    background: var(--card-bg);
+    box-shadow: var(--shadow);
+}
+
+.achievement .icon { font-size: 32px; }
+.achievement .name { font-size: 12px; margin-top: 4px; font-weight: 600; }
+.achievement.locked { opacity: 0.4; }
+
+/* ── 底部导航 ── */
+.bottom-nav {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    display: flex;
+    justify-content: space-around;
+    padding: 8px 0 12px;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+    z-index: 100;
+    max-width: 480px;
+    margin: 0 auto;
+}
+
+.nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    font-size: 10px;
+    color: var(--text-light);
+    text-decoration: none;
+    padding: 4px 12px;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+
+.nav-item .nav-icon { font-size: 22px; }
+.nav-item.active { color: var(--primary); font-weight: 600; }
+
+/* ── 页面切换动画 ── */
+.page {
+    display: none;
+    animation: fadeIn 0.3s ease;
+}
+
+.page.active { display: block; }
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── 汉字卡片（忍術の印） ── */
+.kanji-card {
+    text-align: center;
+    padding: 24px;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    color: white;
+    border-radius: var(--radius);
+    margin-bottom: 16px;
+}
+
+.kanji-card .kanji {
+    font-size: 56px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    text-shadow: 0 0 20px rgba(255,107,53,0.5);
+}
+
+.kanji-card .reading { font-size: 20px; margin-bottom: 4px; }
+.kanji-card .meaning { font-size: 14px; opacity: 0.8; }
+
+/* ── 响应式 ── */
+@media (max-width: 400px) {
+    .stats-row { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .stat-item { padding: 10px 4px; }
+    .stat-item .value { font-size: 18px; }
+    .game-options { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .option-btn { padding: 12px; font-size: 14px; }
+}
