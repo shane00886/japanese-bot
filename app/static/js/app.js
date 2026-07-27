@@ -1,5 +1,57 @@
 /* ── 小新的日语教室 H5 App ── */
 
+// ═══════════════════════════════════════════
+// TTS 语音朗读（浏览器 Web Speech API）
+// ═══════════════════════════════════════════
+
+function speak(text, rate = 0.9) {
+    // 停止当前朗读
+    if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+    }
+
+    if (!text || !window.speechSynthesis) {
+        console.log("浏览器不支持语音");
+        return;
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ja-JP';           // 日语发音
+    utterance.rate = rate;               // 语速（0.9 稍微慢一点）
+    utterance.pitch = 1.0;               // 音调
+    utterance.volume = 1.0;              // 音量
+
+    // 尝试使用日语语音
+    const voices = window.speechSynthesis.getVoices();
+    const jpVoice = voices.find(v => v.lang.startsWith('ja'));
+    if (jpVoice) utterance.voice = jpVoice;
+
+    window.speechSynthesis.speak(utterance);
+}
+
+function speakText(element) {
+    const text = element.getAttribute('data-speak') || element.textContent;
+    speak(text);
+}
+
+// 点击播放按钮朗读
+document.addEventListener('click', function(e) {
+    const btn = e.target.closest('.speak-btn');
+    if (btn) {
+        e.preventDefault();
+        const text = btn.getAttribute('data-speak');
+        speak(text || btn.textContent);
+    }
+});
+
+// 预加载语音列表（某些浏览器需要）
+if (window.speechSynthesis) {
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.onvoiceschanged = () => {
+        window.speechSynthesis.getVoices();
+    };
+}
+
 // === 课程数据（学习内容保留日语） ===
 const LESSONS = [
     { id: 'n5_01', no: 1, title: '冒险开始', chapter: '开学季', desc: '自我介绍、数字、颜色', emoji: '🌸',
@@ -119,6 +171,8 @@ function refreshHome() {
 
     const q = SHINCHAN_QUOTES[Math.floor(Math.random() * SHINCHAN_QUOTES.length)];
     document.getElementById('shinchan-quote').innerHTML = `${q.jp}<br><span style="font-size:13px;color:#795548;">→ ${q.cn}</span>`;
+    const speakBtn = document.querySelector('.speak-btn.mini');
+    if (speakBtn) speakBtn.setAttribute('data-speak', q.jp);
 }
 
 // === 学习地图 ===
@@ -200,6 +254,11 @@ function showNextWord() {
     const word = gameState.words[gameState.current];
     document.getElementById('game-jp').textContent = word.jp;
     document.getElementById('game-kana').textContent = word.kana;
+    const speakBtn = document.getElementById('game-speak-btn');
+    speakBtn.setAttribute('data-speak', word.jp);
+
+    // 自动朗读
+    setTimeout(() => speak(word.jp, 0.85), 300);
 
     const allMeanings = [];
     LESSONS.forEach(l => l.vocab.forEach(v => allMeanings.push(v.cn)));
@@ -282,12 +341,17 @@ function showNextListen() {
     document.getElementById('listen-num').textContent = listenState.current + 1;
     document.getElementById('listen-total').textContent = listenState.questions.length;
 
-    document.querySelector('#listen-area .listen-area div:first-child').innerHTML = `
-        <div style="margin-bottom:12px;">
-            <div style="font-size:24px;font-weight:700;margin-bottom:4px;">${q.jp}</div>
-            <div style="font-size:14px;color:var(--text-light);">${q.kana}</div>
-        </div>
-    `;
+    // 设置播放按钮
+    const playBtn = document.getElementById('listen-play-btn');
+    playBtn.setAttribute('data-speak', q.jp);
+    playBtn.textContent = '🔊';
+
+    // 自动播放
+    setTimeout(() => {
+        speak(q.jp, 0.85);
+        playBtn.classList.add('playing');
+        setTimeout(() => playBtn.classList.remove('playing'), 1200);
+    }, 500);
 
     const allMeanings = [];
     LESSONS.forEach(l => l.vocab.forEach(v => allMeanings.push(v.cn)));

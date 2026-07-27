@@ -208,6 +208,40 @@ body {
     font-size: 13px;
 }
 
+/* ── 语音播放按钮 ── */
+.speak-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 6px 14px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.speak-btn:active { transform: scale(0.92); }
+
+.speak-btn.mini {
+    background: #FF8F5E;
+    padding: 4px 12px;
+    font-size: 12px;
+}
+
+.speak-btn.game-speak {
+    margin-top: 8px;
+    padding: 8px 20px;
+    font-size: 14px;
+    background: var(--accent);
+}
+
+.speak-btn.playing {
+    animation: pulse 0.8s infinite;
+}
+
 /* ── 闯关列表 ── */
 .quest-list {
     list-style: none;

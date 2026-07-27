@@ -100,6 +100,7 @@
             <div style="margin-top:8px;font-size:15px;" id="shinchan-quote">
                 「我是新之助！请多多关照！」
             </div>
+            <button class="speak-btn mini" data-speak="オラはしんのすけ！よろしく頼むゾ！" style="margin-top:8px;">🔊 听小新说</button>
         </div>
     </div>
 
@@ -122,6 +123,7 @@
             <div class="game-word">
                 <div class="japanese" id="game-jp">...</div>
                 <div class="kana" id="game-kana">...</div>
+                <button class="speak-btn game-speak" id="game-speak-btn" data-speak="">🔊 听发音</button>
             </div>
             <div style="text-align:center;font-size:13px;color:var(--text-light);margin-bottom:12px;">
                 选出对应的中文意思 👇
@@ -143,12 +145,12 @@
         <h2 style="margin-bottom:16px;">🎧 听力挑战</h2>
         <div id="listen-area">
             <div class="listen-area">
-                <button class="play-btn" id="listen-play">▶</button>
-                <div style="font-size:14px;color:var(--text-light);margin-bottom:8px;">
-                    第 <span id="listen-num">1</span> / <span id="listen-total">5</span> 题
+                <button class="play-btn" id="listen-play-btn">🔊</button>
+                <div style="font-size:13px;color:var(--text-light);margin-bottom:4px;">
+                    听一听，选出中文意思 👇
                 </div>
-                <div style="font-size:13px;color:var(--text-light);margin-bottom:12px;">
-                    选出这句话的中文意思 👇
+                <div style="font-size:14px;color:var(--text-light);margin-bottom:12px;">
+                    第 <span id="listen-num">1</span> / <span id="listen-total">5</span> 题
                 </div>
                 <div class="game-options" id="listen-options"></div>
             </div>
