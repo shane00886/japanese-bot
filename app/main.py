@@ -1,24 +1,24 @@
 """日语学习机器人 — FastAPI 主应用"""
 
 import os
+import re
 import json
 import random
 from datetime import date, datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
 from app.core.config import settings
-from app.core.dingtalk import DingTalkClient, ding_client
+from app.core.dingtalk import webhook_bot
 from app.models.database import init_db
 from app.services.lesson_service import (
     init_course_data, get_user_progress, get_daily_review_words,
     record_practice, record_checkin
 )
 from app.templates.messages import (
-    morning_teaser, lesson_card, mission_complete,
-    status_report, shinchan_quote_random, shinchan_vocab_card
+    morning_teaser, lesson_card, shinchan_vocab_card
 )
 from app.templates.course_data import N5_LESSONS
 
@@ -26,30 +26,29 @@ from app.templates.course_data import N5_LESSONS
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用启动时初始化"""
-    print(f"🤖 {settings.BOT_NAME} starting up...")
-    # 确保数据目录存在
     import pathlib
     pathlib.Path("data").mkdir(exist_ok=True)
     init_db()
     init_course_data()
+    print(f"🤖 {settings.BOT_NAME} ready!")
     yield
-    print("🤖 Shutting down...")
 
 
 app = FastAPI(title=settings.BOT_NAME, lifespan=lifespan)
 
-# 挂载静态文件（H5 学习页面）
+# 静态文件
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 os.makedirs(STATIC_DIR, exist_ok=True)
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-# ─── 页面路由 ───
+# ═══════════════════════════════════════════
+# 页面路由
+# ═══════════════════════════════════════════
 
 @app.get("/")
 @app.get("/learn")
 def root():
-    """H5 学习页面"""
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 
@@ -58,286 +57,322 @@ def health():
     return {"status": "alive", "time": datetime.now().isoformat()}
 
 
-# ─── 钉钉消息回调（接收 @机器人的消息） ───
+# ═══════════════════════════════════════════
+# 钉钉回调入口（接收群@消息）
+# ═══════════════════════════════════════════
 
 @app.post("/webhook")
-async def webhook(request: Request):
-    """钉钉消息回调入口"""
+@app.post("/callback")
+async def dingtalk_callback(request: Request):
+    """
+    钉钉消息回调入口
+    需要在钉钉开放平台 → 应用 → 开发管理 → 消息接收地址
+    设置为：https://japanese-bot-g5pq.onrender.com/webhook
+    """
     body = await request.json()
-    print(f"📩 收到消息: {json.dumps(body, ensure_ascii=False)[:200]}")
+    print(f"📩 收到消息: {json.dumps(body, ensure_ascii=False)[:300]}")
 
-    # 解析钉钉回调消息
     try:
+        # 解析消息
         sender_id = body.get("senderId") or body.get("senderStaffId", "")
-        conversation_type = body.get("conversationType", "")
         conversation_id = body.get("conversationId", "")
         text = ""
-        msg_body = body.get("text", {}) or body.get("content", {})
+        msg_body = body.get("text", {})
         if isinstance(msg_body, dict):
             text = msg_body.get("content", "")
         elif isinstance(msg_body, str):
             text = msg_body
 
-        # 去掉 @机器人的部分
-        import re
+        # 去掉 @机器人 的部分
         text = re.sub(r'@[^\s]+', '', text).strip()
+        print(f"📝 处理消息: sender={sender_id}, text='{text}'")
 
         if not text:
             return {"msg": "ok"}
 
-        # 处理消息
-        reply = await handle_message(sender_id, text, conversation_id)
+        # 处理消息并获取回复
+        reply = handle_message(sender_id, text)
 
-        # 如果是群聊，通过机器人发消息回复
-        if conversation_type == "group":
-            ding_client.send_group_markdown(
-                conversation_id, "しんちゃん先生", reply
-            )
-        else:
-            ding_client.send_markdown_message(
-                sender_id, "しんちゃん先生", reply
-            )
+        # 用 Webhook 发回到群里
+        webhook_bot.send_markdown("しんちゃん先生", reply)
+        print(f"✅ 已回复: {reply[:50]}...")
 
     except Exception as e:
-        print(f"❌ 消息处理错误: {e}")
+        print(f"❌ 处理错误: {e}")
 
     return {"msg": "ok"}
 
 
-async def handle_message(user_id: str, text: str, conversation_id: str) -> str:
-    """处理用户消息，返回回复文本"""
+# ═══════════════════════════════════════════
+# 消息处理
+# ═══════════════════════════════════════════
+
+def handle_message(user_id: str, text: str) -> str:
+    """处理用户消息，返回中文回复"""
     text = text.strip().lower()
 
-    # ── 功能触发类 ──
-    if any(kw in text for kw in ["打卡", "checkin", "完成"]):
-        return await do_checkin(user_id)
+    # 打卡
+    if any(kw in text for kw in ["打卡", "签到", "完成"]):
+        return _do_checkin(user_id)
 
-    if any(kw in text for kw in ["进度", "status", "成绩", "多少级", "xp", "经验"]):
-        return await do_status(user_id)
+    # 进度查询
+    if any(kw in text for kw in ["进度", "成绩", "等级", "经验", "多少"]):
+        return _do_status(user_id)
 
-    if any(kw in text for kw in ["任务", "今天", "开始", "mission", "闯关"]):
-        return await do_daily_mission(user_id, conversation_id)
+    # 今日任务
+    if any(kw in text for kw in ["任务", "今天", "闯关", "开始"]):
+        return _do_mission(user_id)
 
-    if any(kw in text for kw in ["复习", "review", "复習"]):
-        return await do_review(user_id)
+    # 复习
+    if any(kw in text for kw in ["复习", "回顾"]):
+        return _do_review(user_id)
 
-    if any(kw in text for kw in ["帮助", "help", "用法", "命令"]):
-        return get_help_text()
+    # 帮助
+    if any(kw in text for kw in ["帮助", "help", "命令", "怎么用"]):
+        return _help_text()
 
-    # ── 单词查询 ──
-    if any(kw in text for kw in ["怎么说", "什么意思", "意思是", "日语", "翻译"]):
-        return await do_translate(text)
+    # 查询单词
+    if any(kw in text for kw in ["怎么说", "什么意思", "翻译"]):
+        return _do_translate(text)
 
-    # ── 闲聊／しんちゃん ──
-    if any(kw in text for kw in ["しんちゃん", "新之助", "小新", "蜡笔小新"]):
-        return get_shinchan_fun_fact()
+    # 小新相关
+    if any(kw in text for kw in ["小新", "新之助", "蜡笔小新", "しんちゃん"]):
+        return _shinchan_fact()
 
-    return get_fallback_text()
+    # 跳转到学习页面
+    if any(kw in text for kw in ["页面", "网页", "h5", "学习"]):
+        return f"📚 点这里开始学习：\nhttps://japanese-bot-g5pq.onrender.com/learn"
+
+    # 兜底
+    return _fallback()
 
 
-# ── 各功能实现 ──
-
-async def do_checkin(user_id: str) -> str:
+def _do_checkin(user_id: str) -> str:
+    """打卡"""
     try:
         record_checkin(user_id)
-        progress = get_user_progress(user_id)
-        streak = progress["streak_days"]
-        xp = progress["xp"]
-        level = progress["level"]
+        p = get_user_progress(user_id)
+        s = p["streak_days"]
+        xp = p["xp"]
 
-        # 彩蛋
-        if streak == 7:
-            return f"🎊 **7日連続達成！**🔥\n\nよくやった！もうアクション仮面級のヒーローだ！\n💎 XP +25（累計 {xp}）\n🎖️ {level}\n\n「オラも見習わないと！明日も待ってるゾ！」"
-        elif streak == 30:
-            return f"🎊🎊 **30日連続！レジェンド達成！** 🎊🎊\n\n野原家の誇りだゾ！これからもがんばれ！\n💎 XP +25（累計 {xp}）\n🎖️ {level}"
+        if s == 1:
+            return f"🎉 打卡成功！第一天开始啦！🔥\n💎 经验值 +25（累计 {xp}）\n\n「好的开始是成功的一半！」"
+        if s == 7:
+            return f"🎊 连续 7 天！太厉害了！🔥🔥🔥\n💎 经验值 +25（累计 {xp}）\n\n「你已经超越大多数人了！」"
+        if s == 30:
+            return f"👑👑👑 连续 30 天！传奇达成！\n💎 经验值 +25（累计 {xp}）\n\n「你已经是日语达人了！」"
 
-        return f"🎊 **チェックイン完了！**\n🔥 連続学習：{streak} 日目\n💎 XP +25（累計 {xp} XP）\n🎖️ {level}\n\n「継続は力なり！明日も来いよ！」"
+        msg = f"✅ 打卡成功！连续 {s} 天 🔥\n💎 经验值 +25（累计 {xp}）"
+        if s in [3, 5, 10, 14, 21]:
+            msg += f"\n🎖️ 解锁成就：连续 {s} 天！"
+        return msg
     except Exception as e:
-        return f"❌ 打卡失败了：{e}"
+        return f"❌ 打卡失败：{e}"
 
 
-async def do_status(user_id: str) -> str:
-    progress = get_user_progress(user_id)
-    return status_report(
-        xp=progress["xp"],
-        level=progress["level"],
-        streak=progress["streak_days"],
-        max_streak=progress["max_streak"],
-        current_lesson=progress["current_lesson"]["title"] if progress["current_lesson"] else "全部完了！",
-        progress_pct=progress["progress_pct"],
-    )
+def _do_status(user_id: str) -> str:
+    """查询进度"""
+    try:
+        p = get_user_progress(user_id)
+        lesson = p["current_lesson"]
+        title = lesson["title"] if lesson else "全部完成！"
+        return (
+            f"📊 **学习报告**\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"🎖️ 等级：{p['level']}\n"
+            f"💎 经验值：{p['xp']}\n"
+            f"🔥 连续学习：{p['streak_days']} 天\n"
+            f"🏆 最长记录：{p['max_streak']} 天\n"
+            f"📖 当前课程：{title}\n"
+            f"📈 总进度：{p['progress_pct']}%（{p['completed_lessons']}/{p['total_lessons']} 章）\n"
+            f"━━━━━━━━━━━━━━━━\n"
+            f"继续加油！🎯"
+        )
+    except Exception as e:
+        return f"❌ 查询失败：{e}"
 
 
-async def do_daily_mission(user_id: str, conversation_id: str) -> str:
-    """准备每日任务"""
-    progress = get_user_progress(user_id)
-    lesson = progress.get("current_lesson")
+def _do_mission(user_id: str) -> str:
+    """今日任务"""
+    try:
+        p = get_user_progress(user_id)
+        lesson = p.get("current_lesson")
+        if not lesson:
+            return "🎉 所有课程都学完啦！等着我出新课吧！"
 
-    if not lesson:
-        return "🎉 **全部の課程を修了しました！** おめでとう！\n\n新しいコンテンツをお待ちください！"
+        # 获取单词
+        from app.models.database import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM vocabulary WHERE lesson_id = ?", (lesson["lesson_id"],))
+        vocab = [dict(r) for r in cursor.fetchall()]
+        conn.close()
 
-    # 获取课程词汇
-    from app.models.database import get_connection
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM vocabulary WHERE lesson_id = ?", (lesson["lesson_id"],))
-    vocab_list = [dict(row) for row in cursor.fetchall()]
-    conn.close()
+        # 发送课程卡片
+        card = lesson_card(
+            lesson_title=lesson["title"],
+            shinchan_line=lesson.get("shinchan_line", ""),
+            vocab_list=vocab,
+            grammar=lesson["grammar_points"],
+        )
+        webhook_bot.send_markdown(f"📖 {lesson['title']}", card)
 
-    # 发送学习卡片
-    card = lesson_card(
-        lesson_title=lesson["title"],
-        shinchan_line=lesson.get("shinchan_line", ""),
-        vocab_list=vocab_list,
-        grammar=lesson["grammar_points"],
-    )
-    # 由于是���步回复，直接发送到群里
-    ding_client.send_group_markdown(conversation_id, f"📖 {lesson['title']}", card)
-
-    vocab_card = shinchan_vocab_card(vocab_list)
-    ding_client.send_group_markdown(conversation_id, "📺 しんちゃんの単語帳", vocab_card)
-
-    return f"🔥 今日は「{lesson['title']}」の修行だ！上のカードを見て勉強してね！\n覚えたら「打卡」って言って教えて！"
-
-
-async def do_review(user_id: str) -> str:
-    words = get_daily_review_words(user_id)
-    if not words:
-        return "📚 **今日の復習はありません！**\n新しい単語を覚えて、明日またチェックしよう！"
-
-    lines = "\n".join([
-        f"  🔄 **{w['japanese']}**（{w['kana']}）— {w['meaning']}"
-        f"\n    📝 {w['example']}"
-        for w in words
-    ])
-    return f"🔄 **復習タイム！**\n\n今日は {len(words)} 語の復習だ！\n\n{lines}\n\n「忘れる前に復習するのが大事だゾ！」"
+        return (
+            f"🔥 今天的任务是「{lesson['title']}」！\n"
+            f"📝 学习 {len(vocab)} 个新单词\n"
+            f"⏱ 大约需要 12 分钟\n\n"
+            f"学完后说「打卡」来记录哦！"
+        )
+    except Exception as e:
+        return f"❌ 获取任务失败：{e}"
 
 
-async def do_translate(text: str) -> str:
-    """简单翻译/单词查询（基于已有词库）"""
-    from app.models.database import get_connection
-    conn = get_connection()
-    cursor = conn.cursor()
+def _do_review(user_id: str) -> str:
+    """复习旧词"""
+    try:
+        words = get_daily_review_words(user_id)
+        if not words:
+            return "📚 今天没有需要复习的单词！学新词的时候我会提醒你的。"
 
-    # 提取可能的查询词
-    query_word = text.replace("怎么说", "").replace("什么意思", "").replace("日语", "").replace("翻译", "").replace(" ", "").strip()
-
-    # 查日→中
-    cursor.execute(
-        "SELECT japanese, kana, meaning, example, example_meaning FROM vocabulary WHERE japanese LIKE ? LIMIT 1",
-        (f"%{query_word}%",)
-    )
-    word = cursor.fetchone()
-
-    if word:
-        return f"🔤 **{word['japanese']}**（{word['kana']}）\n→ {word['meaning']}\n📝 {word['example']}（{word['example_meaning']}）"
-
-    # 查中→日
-    cursor.execute(
-        "SELECT japanese, kana, meaning FROM vocabulary WHERE meaning LIKE ? LIMIT 1",
-        (f"%{query_word}%",)
-    )
-    word = cursor.fetchone()
-    conn.close()
-
-    if word:
-        return f"🔤 {query_word} → **{word['japanese']}**（{word['kana']}）"
-
-    return f"「{query_word}」は…まだ習ってないゾ！新しい単語を勉強したらまた聞いてくれ！"
+        lines = "\n".join([
+            f"  🔄 **{w['japanese']}**（{w['kana']}）— {w['meaning']}"
+            for w in words
+        ])
+        return f"🔄 **今天要复习 {len(words)} 个词：**\n\n{lines}\n\n「记不住的词要多看几遍哦！」"
+    except Exception as e:
+        return f"❌ 获取复习词失败：{e}"
 
 
-def get_shinchan_fun_fact() -> str:
+def _do_translate(text: str) -> str:
+    """简单翻译"""
+    try:
+        q = text
+        for kw in ["怎么说", "什么意思", "翻译", "日语"]:
+            q = q.replace(kw, "")
+        q = q.strip()
+
+        if not q:
+            return "💡 试试这样问我：\n「苹果 怎么说」\n「ラーメン 什么意思」"
+
+        from app.models.database import get_connection
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT japanese, kana, meaning FROM vocabulary WHERE japanese LIKE ? LIMIT 1",
+            (f"%{q}%",)
+        )
+        w = cursor.fetchone()
+        if w:
+            conn.close()
+            return f"🔤 {w['japanese']}（{w['kana']}）\n→ {w['meaning']}"
+
+        cursor.execute(
+            "SELECT japanese, kana, meaning FROM vocabulary WHERE meaning LIKE ? LIMIT 1",
+            (f"%{q}%",)
+        )
+        w = cursor.fetchone()
+        conn.close()
+        if w:
+            return f"🔤 {q} → {w['japanese']}（{w['kana']}）"
+
+        return f"「{q}」还没学到呢！学新词的时候我教你！📖"
+    except Exception as e:
+        return f"❌ 查询出错：{e}"
+
+
+def _shinchan_fact() -> str:
+    """小新冷知识"""
     facts = [
-        "🎬 **しんちゃん豆知識**\n\nしんちゃんの本名は「野原しんのすけ」。年齢は5歳！好きな食べ物はチョコビとカレー！",
-        "🎬 **しんちゃん豆知識**\n\nしんちゃんの口ぐせ「オラ」は、実は関東地方の子供言葉。大人の男性は「ぼく」、女性は「わたし」を使うんだゾ！",
-        "🎬 **しんちゃん豆知識**\n\nしんちゃんの妹「ひまわり」の名前の由来は、太陽に向かって咲くヒマワリのように元気に育ってほしいから！",
-        "🎬 **しんちゃん豆知識**\n\nしんちゃんが住んでいるのは埼玉県春日部市！「クレヨンしんちゃん」の舞台なんだゾ！",
-        "🎬 **しんちゃんの名言**\n\n「楽しいことが一番だゾ！勉強も楽しんでやるのがコツ！」",
+        ("🎬 **蜡笔小新冷知识**\n\n小新全名叫「野原新之助」，今年 5 岁！最爱吃巧克力饼干和咖喱饭！"),
+        ("🎬 **蜡笔小新冷知识**\n\n小新常说的「オラ」是日本关东地区的小孩用语。大人一般说「ぼく」或「わたし」。"),
+        ("🎬 **蜡笔小新冷知识**\n\n小新的妹妹叫「野原向日葵」，名字的意思是像向日葵一样阳光地成长！"),
+        ("🎬 **蜡笔小新冷知识**\n\n小新住在埼玉县春日部市，蜡笔小新的故事就发生在这里！"),
+        ("🎬 **蜡笔小新名言**\n\n「开心的事最重要！学习也要开开心心地学！」"),
+        ("🎬 **蜡笔小新名言**\n\n小新最经典的口头禅之一：「美女，一起吃个饭怎么样？」😂"),
     ]
-    return random.choice(facts)
+    return random.choice(facts)[0]
 
 
-def get_fallback_text() -> str:
-    """兜底回复"""
+def _help_text() -> str:
+    return (
+        "📋 **小新日语助手 使用说明**\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "📖 **「任务」** — 查看今天的学习内容\n"
+        "✅ **「打卡」** — 学完了，记录一下\n"
+        "📊 **「进度」** — 看看自己的学习情况\n"
+        "🔄 **「复习」** — 复习以前学过的单词\n"
+        "🔤 **「XX 怎么说」** — 查单词的中文→日文\n"
+        "🔤 **「XX 什么意思」** — 查单词的日文→中文\n"
+        "🎬 **「小新」** — 看看蜡笔小新的冷知识\n"
+        "📚 **「学习」** — 打开 H5 学习页面\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "直接在群里问我吧！💪"
+    )
+
+
+def _fallback() -> str:
     replies = [
-        "うーん…難しい質問だ！修行中の身にはまだ早すぎるゾ！また後で聞いてくれ！",
-        "ごめん！まだその質問に答えられないんだ。もっと勉強してから戻ってくる！",
-        "おっ！いい質問だ！でも今はまだ修行中でな…許してくれ！",
-        "その質問、師匠に聞いてみないとわからないゾ！また明日な！",
-        "ブッブー！その質問にはまだ答えられないゾ！でも気にするな！",
+        "🤔 不明白你在说什么……试试说「任务」或「帮助」吧！",
+        "😅 我还不太懂这个……你可以说「帮助」看看我会什么！",
+        "💪 继续加油！不懂的就说「帮助」，我教你！",
+        "🎯 说「任务」开始今天的学习，说「打卡」记录完成！",
+        "📖 不知道怎么用？说「帮助」看看使用说明！",
     ]
     return random.choice(replies)
 
 
-def get_help_text() -> str:
-    return """
-📋 **しんちゃん先生　使い方**
+# ═══════════════════════════════════════════
+# API 接口（给 H5 页面调用的后端 API）
+# ═══════════════════════════════════════════
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-🔹 **今日のタスク**
-  「任务」「今天」「闯关」
-  → 今日の学習内容を表示
-
-🔹 **チェックイン**
-  「打卡」「checkin」
-  → 学習完了を記録
-
-🔹 **進捗確認**
-  「进度」「status」「经验」
-  → 現在の学習状況を表示
-
-🔹 **単語クエリ**
-  「XX 怎么说」「XX 什么意思」
-  → 単語の意味を調べる
-
-🔹 **復習**
-  「复习」「review」
-  → 今日の復習単語を表示
-
-🔹 **しんちゃん**
-  「しんちゃん」「新之助」
-  → しんちゃん豆知識を表示
-━━━━━━━━━━━━━━━━━━━━━━━━━━
-    """.strip()
+@app.get("/api/user/{user_id}")
+def api_get_user(user_id: str):
+    """获取用户数据"""
+    p = get_user_progress(user_id)
+    return {
+        "level": p["level"],
+        "xp": p["xp"],
+        "streak_days": p["streak_days"],
+        "max_streak": p["max_streak"],
+        "current_lesson": {
+            "id": p["current_lesson"]["lesson_id"] if p["current_lesson"] else None,
+            "title": p["current_lesson"]["title"] if p["current_lesson"] else None,
+        },
+        "completed": p["completed_lessons"],
+        "progress_pct": p["progress_pct"],
+    }
 
 
-# ─── 手动测试接口（用于第一次验证） ───
+@app.get("/api/lessons")
+def api_get_lessons():
+    """获取所有课程"""
+    lessons = []
+    for l in N5_LESSONS:
+        lessons.append({
+            "id": l["lesson_id"],
+            "no": l["lesson_no"],
+            "title": l["title"],
+            "chapter": l["chapter"],
+            "desc": l["description"],
+            "vocab_count": l["vocab_count"],
+        })
+    return {"lessons": lessons}
 
-@app.post("/test/send")
-async def test_send(conversation_id: str = "test"):
-    """测试发送一条早安卡片"""
-    if conversation_id == "test":
-        return {"message": "请提供真实的 openConversationId", "help": "从钉钉群设置中获取群ID"}
 
-    card = morning_teaser(
-        lesson_title="冒険の始まり",
-        chapter="开学季 · 自我介绍",
-        duration=12,
-        xp=25,
+@app.post("/api/checkin/{user_id}")
+def api_checkin(user_id: str):
+    """打卡"""
+    record_checkin(user_id)
+    p = get_user_progress(user_id)
+    return {"ok": True, "streak": p["streak_days"], "xp": p["xp"]}
+
+
+@app.post("/api/test/send")
+def api_test_send():
+    """测试发送消息到钉钉群"""
+    result = webhook_bot.send_markdown(
+        "🧪 测试消息",
+        "### 🧪 测试消息\n\n机器人测试成功！\n\n> H5 页面：https://japanese-bot-g5pq.onrender.com/learn"
     )
-    result = ding_client.send_group_markdown(conversation_id, "🌅 おはよう！", card)
-    return {"sent": True, "result": result}
-
-
-@app.post("/test/lesson")
-async def test_lesson(conversation_id: str = "test"):
-    """测试发送课程卡片"""
-    if conversation_id == "test":
-        return {"message": "请提供真实的 openConversationId"}
-
-    lesson = N5_LESSONS[0]
-    from app.models.database import get_connection
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM vocabulary WHERE lesson_id = ?", (lesson["lesson_id"],))
-    vocab_list = [dict(row) for row in cursor.fetchall()]
-    conn.close()
-
-    card = lesson_card(
-        lesson_title=lesson["title"],
-        shinchan_line=lesson["shinchan_line"],
-        vocab_list=vocab_list,
-        grammar=lesson["grammar_points"],
-    )
-    result = ding_client.send_group_markdown(conversation_id, f"📖 {lesson['title']}", card)
-    return {"sent": True, "result": result}
+    return {"sent": result.get("errcode") == 0, "detail": result}
