@@ -9,6 +9,8 @@ DB_PATH = Path(__file__).parent.parent.parent / "data" / "jp_bot.db"
 
 
 def get_connection() -> sqlite3.Connection:
+    # 确保数据目录存在
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")

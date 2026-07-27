@@ -27,6 +27,9 @@ from app.templates.course_data import N5_LESSONS
 async def lifespan(app: FastAPI):
     """应用启动时初始化"""
     print(f"🤖 {settings.BOT_NAME} starting up...")
+    # 确保数据目录存在
+    import pathlib
+    pathlib.Path("data").mkdir(exist_ok=True)
     init_db()
     init_course_data()
     yield
