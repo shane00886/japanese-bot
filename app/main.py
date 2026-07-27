@@ -66,15 +66,28 @@ def health():
 async def dingtalk_callback(request: Request):
     """
     钉钉消息回调入口
-    需要在钉钉开放平台 → 应用 → 开发管理 → 消息接收地址
-    设置为：https://japanese-bot-g5pq.onrender.com/webhook
+    1. URL 验证（DingTalk 平台会发送加密验证请求）
+    2. 群@机器人消息
     """
+    # 钉钉 URL 验证走 GET
+    if request.method == "GET":
+        return {"msg": "ok"}
+
     body = await request.json()
     print(f"📩 收到消息: {json.dumps(body, ensure_ascii=False)[:300]}")
 
+    # 处理 URL 验证请求
+    if body.get("msg") == "ping":
+        return {"msg": "pong"}
+
+    # 处理加密/非加密的消息回调
     try:
-        # 解析消息
-        sender_id = body.get("senderId") or body.get("senderStaffId", "")
+        # 1. 钉钉加密消息（带 encrypt 字段）—— 我们没配加解密，先不支持
+        if "encrypt" in body:
+            print(f"⚠️ 收到加密消息（需要配置加解密密钥）")
+            return {"msg": "ok"}
+
+        sender_id = body.get("senderId") or body.get("senderStaffId", "") or "unknown"
         conversation_id = body.get("conversationId", "")
         text = ""
         msg_body = body.get("text", {})
@@ -83,23 +96,31 @@ async def dingtalk_callback(request: Request):
         elif isinstance(msg_body, str):
             text = msg_body
 
-        # 去掉 @机器人 的部分
+        # 去掉 @机器人 部分
         text = re.sub(r'@[^\s]+', '', text).strip()
         print(f"📝 处理消息: sender={sender_id}, text='{text}'")
 
         if not text:
             return {"msg": "ok"}
 
-        # 处理消息并获取回复
+        # 处理消息
         reply = handle_message(sender_id, text)
 
         # 用 Webhook 发回到群里
         webhook_bot.send_markdown("しんちゃん先生", reply)
-        print(f"✅ 已回复: {reply[:50]}...")
+        print(f"✅ 已回复: {reply[:80]}...")
 
     except Exception as e:
         print(f"❌ 处理错误: {e}")
 
+    return {"msg": "ok"}
+
+
+# 同时支持 GET 请求（钉钉会发送 GET 来验证）
+@app.get("/webhook")
+@app.get("/callback")
+def dingtalk_get_callback():
+    """钉钉 GET 验证"""
     return {"msg": "ok"}
 
 
