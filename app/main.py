@@ -63,6 +63,25 @@ def health():
 
 @app.post("/webhook")
 @app.post("/callback")
+def _send_dingtalk_reply(session_webhook: str, title: str, text: str):
+    """通过钉钉回调的 sessionWebhook 发送回复"""
+    if not session_webhook:
+        # 没有 sessionWebhook 则用自定义机器人
+        webhook_bot.send_markdown(title, text)
+        return
+
+    payload = {
+        "msgtype": "markdown",
+        "markdown": {"title": title, "text": text},
+    }
+    try:
+        import requests
+        requests.post(session_webhook, json=payload, timeout=10)
+    except Exception as e:
+        print(f"❌ session webhook 发送失败: {e}")
+        webhook_bot.send_markdown(title, text)
+
+
 async def dingtalk_callback(request: Request):
     """
     钉钉消息回调入口
@@ -74,7 +93,7 @@ async def dingtalk_callback(request: Request):
         return {"msg": "ok"}
 
     body = await request.json()
-    print(f"📩 收到消息: {json.dumps(body, ensure_ascii=False)[:300]}")
+    print(f"📩 收到消息: {json.dumps(body, ensure_ascii=False)[:500]}")
 
     # 处理 URL 验证请求
     if body.get("msg") == "ping":
@@ -82,13 +101,15 @@ async def dingtalk_callback(request: Request):
 
     # 处理加密/非加密的消息回调
     try:
-        # 1. 钉钉加密消息（带 encrypt 字段）—— 我们没配加解密，先不支持
+        # 加密消息需配置加解密密钥，暂不支持
         if "encrypt" in body:
-            print(f"⚠️ 收到加密消息（需要配置加解密密钥）")
-            return {"msg": "ok"}
+            print(f"⚠️ 收到加密消息（需配置加解密密钥）")
+            return {"msg": "success"}
 
         sender_id = body.get("senderId") or body.get("senderStaffId", "") or "unknown"
-        conversation_id = body.get("conversationId", "")
+        session_webhook = body.get("sessionWebhook", "") or body.get("webhook", "")
+
+        # 提取文本
         text = ""
         msg_body = body.get("text", {})
         if isinstance(msg_body, dict):
@@ -98,22 +119,22 @@ async def dingtalk_callback(request: Request):
 
         # 去掉 @机器人 部分
         text = re.sub(r'@[^\s]+', '', text).strip()
-        print(f"📝 处理消息: sender={sender_id}, text='{text}'")
+        # 去掉首尾空白和引号
+        text = text.strip('"\' \t\n')
+        print(f"📝 处理: sender={sender_id}, text='{text}', sessionWebhook={'有' if session_webhook else '无'}")
 
         if not text:
-            return {"msg": "ok"}
+            return {"msg": "success"}
 
-        # 处理消息
+        # 处理并回复
         reply = handle_message(sender_id, text)
-
-        # 用 Webhook 发回到群里
-        webhook_bot.send_markdown("しんちゃん先生", reply)
+        _send_dingtalk_reply(session_webhook, "しんちゃん先生", reply)
         print(f"✅ 已回复: {reply[:80]}...")
 
     except Exception as e:
         print(f"❌ 处理错误: {e}")
 
-    return {"msg": "ok"}
+    return {"msg": "success"}
 
 
 # 同时支持 GET 请求（钉钉会发送 GET 来验证）
