@@ -43,20 +43,18 @@ function getVoiceParams(text) {
 }
 
 function speak(text, rate = 0.9) {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (!text || !window.speechSynthesis) return;
+    // 不调用 cancel()，避免 DingTalk 浏览器立刻取消
 
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
     u.rate = rate;
     u.volume = 1.0;
 
-    // 只加音高（不影响播放，只改变音色）
     if (voiceMode === 'shinchan') u.pitch = 2.0;
     else if (voiceMode === 'misae') u.pitch = 0.7;
     else u.pitch = 1.0;
 
-    // 尝试找日语语音（找不到用默认也不影响播放）
     const voices = window.speechSynthesis.getVoices();
     const jpVoice = voices.find(v => v.lang.startsWith('ja'));
     if (jpVoice) u.voice = jpVoice;

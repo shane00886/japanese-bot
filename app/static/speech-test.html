@@ -31,36 +31,35 @@ addLog('📱 浏览器: ' + navigator.userAgent);
 
 function speakText(text, rate, pitch) {
     addLog(`▶ 尝试朗读: ${text} (rate=${rate}, pitch=${pitch})`);
-    
+
     if (!window.speechSynthesis) {
         addLog('❌ window.speechSynthesis 不存在！');
         return;
     }
-    
-    window.speechSynthesis.cancel();
-    
+
+    // 不调用 cancel()，避免 DingTalk 立刻取消播放
+
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
     u.rate = rate;
     u.pitch = pitch;
     u.volume = 1.0;
-    
+
     // 尝试找日语语音
     const voices = window.speechSynthesis.getVoices();
     addLog(`📊 可用语音数: ${voices.length}`);
     if (voices.length > 0) {
-        voices.forEach(v => addLog(`  ${v.name} (${v.lang})`));
         const jp = voices.find(v => v.lang.startsWith('ja'));
         if (jp) { u.voice = jp; addLog(`✅ 使用日语语音: ${jp.name}`); }
         else addLog('⚠️ 没找到日语语音，用默认');
     } else {
         addLog('⚠️ 语音列表为空（过一会儿会加载）');
     }
-    
+
     u.onstart = () => addLog('▶ 开始播放...');
     u.onend = () => addLog('✅ 播放完成');
     u.onerror = (e) => addLog(`❌ 播放错误: ${e.error}`);
-    
+
     try {
         window.speechSynthesis.speak(u);
     } catch(e) {
