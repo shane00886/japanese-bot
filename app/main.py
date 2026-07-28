@@ -11,7 +11,7 @@ from datetime import date, datetime
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 from app.core.config import settings
 from app.core.dingtalk import webhook_bot
@@ -67,13 +67,28 @@ def health():
 
 
 # ═══════════════════════════════════════════
-# TTS 语音合成 API
+# TTS 语音合成 API（Google TTS）
 # ═══════════════════════════════════════════
+
+AUDIO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "audio")
+os.makedirs(AUDIO_DIR, exist_ok=True)
+
 
 @app.get("/api/tts")
 async def api_tts(text: str = "こんにちは", voice: str = "normal"):
-    """已移除服务端 TTS（Edge TTS 在服务器上被微软限制），请使用浏览器 Speech API"""
-    return {"message": "请使用 Chrome/Safari 浏览器打开获得语音支持", "text": text}
+    """使用 Google TTS 生成日语语音 MP3"""
+    file_id = hashlib.md5(text.encode()).hexdigest()
+    file_path = os.path.join(AUDIO_DIR, f"{file_id}.mp3")
+
+    if not os.path.exists(file_path):
+        try:
+            from gtts import gTTS
+            tts = gTTS(text, lang="ja", slow=False)
+            tts.save(file_path)
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": str(e)})
+
+    return FileResponse(file_path, media_type="audio/mpeg")
 
 
 # ═══════════════════════════════════════════
