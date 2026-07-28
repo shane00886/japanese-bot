@@ -42,30 +42,24 @@ function getVoiceParams(text) {
     }
 }
 
-// 获取日语语音
-function getJpVoice() {
-    const voices = window.speechSynthesis.getVoices();
-    // 优先女声: Kyoko(macOS), Microsoft(Windows), Samantha(iOS)
-    for (const name of ['kyoko', 'samantha', '微软', 'female', 'zira']) {
-        const found = voices.find(v => v.lang.startsWith('ja') && v.name.toLowerCase().includes(name));
-        if (found) return found;
-    }
-    return voices.find(v => v.lang.startsWith('ja')) || voices[0];
-}
-
-function speak(text, rate = null) {
+function speak(text, rate = 0.9) {
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (!text || !window.speechSynthesis) return;
 
-    const params = getVoiceParams(text);
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
-    u.pitch = params.pitch;
-    u.rate = rate !== null ? rate : params.rate;
+    u.rate = rate;
     u.volume = 1.0;
 
-    const voice = getJpVoice();
-    if (voice) u.voice = voice;
+    // 只加音高（不影响播放，只改变音色）
+    if (voiceMode === 'shinchan') u.pitch = 2.0;
+    else if (voiceMode === 'misae') u.pitch = 0.7;
+    else u.pitch = 1.0;
+
+    // 尝试找日语语音（找不到用默认也不影响播放）
+    const voices = window.speechSynthesis.getVoices();
+    const jpVoice = voices.find(v => v.lang.startsWith('ja'));
+    if (jpVoice) u.voice = jpVoice;
 
     window.speechSynthesis.speak(u);
 }
