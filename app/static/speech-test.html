@@ -74,3 +74,51 @@ function test3() {
 </script>
 </body>
 </html>
+
+<h3 style="margin-top:20px;">🧪 方案3: Web Audio API 测试</h3>
+<button onclick="testBeep()">🔊 哔哔声测试</button>
+<button onclick="testOsc()">🎵 音调测试</button>
+<div id="beep-log"></div>
+<script>
+function l(msg) { document.getElementById('beep-log').textContent += msg + '\n'; }
+
+function testBeep() {
+    l('尝试 AudioContext 哔哔声...');
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = 800;
+        gain.gain.value = 0.3;
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + 0.5);
+        l('✅ AudioContext 哔哔声已播放');
+    } catch(e) { l('❌ AudioContext: ' + e.message); }
+}
+
+function testOsc() {
+    l('尝试 Web Audio + Speech 合成...');
+    try {
+        // 这个方案不依赖 SpeechSynthesis 和 MP3
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        // 模拟日语语调 - 一组不同频率的振荡
+        const notes = [400, 500, 450, 550, 500, 600];
+        notes.forEach((freq, i) => {
+            const osc = ctx.createOscillator();
+            const gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = freq;
+            gain.gain.value = 0.15;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(ctx.currentTime + i * 0.15);
+            gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.13);
+            osc.stop(ctx.currentTime + i * 0.15 + 0.14);
+        });
+        l('✅ 音调序列播放 (模拟语气)');
+    } catch(e) { l('❌ ' + e.message); }
+}
+</script>
