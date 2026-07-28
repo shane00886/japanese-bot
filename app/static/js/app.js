@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════
 
 // 音色模式: 'normal' | 'shinchan' | 'misae'
-let voiceMode = 'normal';
+let voiceMode = localStorage.getItem('jp-voice-mode') || 'normal';
 
 function setVoiceMode(mode) {
     voiceMode = mode;
@@ -14,15 +14,50 @@ function setVoiceMode(mode) {
     });
     try { localStorage.setItem('jp-voice-mode', mode); } catch(e) {}
 
-    // 切换音色后立即朗读一句，让孩子听到变化
+    // 切换后播报一句
     setTimeout(() => {
-        const demos = {
-            'shinchan': 'オラはしんのすけ！',
-            'misae': 'しんのすけ！ご飯の時間よ！',
-            'normal': 'こんにちは。日本語を勉強しましょう。',
-        };
+        const demos = {'shinchan': 'オラはしんのすけ！', 'misae': 'しんのすけ！ご飯の時間よ！', 'normal': 'こんにちは。日本語を勉強しましょう。'};
         speak(demos[mode] || demos.normal);
     }, 200);
+}
+
+// ═══════════════════════════════════════════
+// 🎵 语音朗读 - 服务端 TTS（兼容所有浏览器）
+// ═══════════════════════════════════════════
+
+function speak(text, rate = 0.9) {
+    if (!text) return;
+
+    // 先试浏览器 Speech API（速度快）
+    if (window.speechSynthesis) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ja-JP';
+        u.rate = rate;
+        u.volume = 1.0;
+        if (voiceMode === 'shinchan') u.pitch = 2.0;
+        else if (voiceMode === 'misae') u.pitch = 0.7;
+        else u.pitch = 1.0;
+        const voices = window.speechSynthesis.getVoices();
+        const jpVoice = voices.find(v => v.lang.startsWith('ja'));
+        if (jpVoice) u.voice = jpVoice;
+        window.speechSynthesis.speak(u);
+    }
+
+    // 同时用服务端 TTS 兜底（DingTalk 浏览器需要这个）
+    speakServer(text);
+}
+
+let currentAudio = null;
+
+function speakServer(text) {
+    // 停止之前的服务端音频
+    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+
+    const audio = new Audio();
+    currentAudio = audio;
+    audio.src = `/api/tts?text=${encodeURIComponent(text)}&voice=${voiceMode}&t=${Date.now()}`;
+    audio.volume = 1.0;
+    audio.play().catch(e => console.log('服务端 TTS 播放:', e.message));
 }
 
 // 恢复上次选择的音色

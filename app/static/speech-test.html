@@ -32,39 +32,32 @@ addLog('📱 浏览器: ' + navigator.userAgent);
 function speakText(text, rate, pitch) {
     addLog(`▶ 尝试朗读: ${text} (rate=${rate}, pitch=${pitch})`);
 
+    // 方法1: 浏览器 Speech API
     if (!window.speechSynthesis) {
-        addLog('❌ window.speechSynthesis 不存在！');
-        return;
-    }
-
-    // 不调用 cancel()，避免 DingTalk 立刻取消播放
-
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ja-JP';
-    u.rate = rate;
-    u.pitch = pitch;
-    u.volume = 1.0;
-
-    // 尝试找日语语音
-    const voices = window.speechSynthesis.getVoices();
-    addLog(`📊 可用语音数: ${voices.length}`);
-    if (voices.length > 0) {
+        addLog('❌ window.speechSynthesis 不存在');
+    } else {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'ja-JP'; u.rate = rate; u.pitch = pitch; u.volume = 1.0;
+        const voices = window.speechSynthesis.getVoices();
+        addLog(`📊 可用语音数: ${voices.length}`);
         const jp = voices.find(v => v.lang.startsWith('ja'));
         if (jp) { u.voice = jp; addLog(`✅ 使用日语语音: ${jp.name}`); }
         else addLog('⚠️ 没找到日语语音，用默认');
-    } else {
-        addLog('⚠️ 语音列表为空（过一会儿会加载）');
+        u.onstart = () => addLog('▶ 浏览器TTS开始...');
+        u.onend = () => addLog('✅ 浏览器TTS完成');
+        u.onerror = (e) => addLog(`❌ 浏览器TTS错误: ${e.error}`);
+        try { window.speechSynthesis.speak(u); } catch(e) { addLog(`❌ 异常: ${e.message}`); }
     }
 
-    u.onstart = () => addLog('▶ 开始播放...');
-    u.onend = () => addLog('✅ 播放完成');
-    u.onerror = (e) => addLog(`❌ 播放错误: ${e.error}`);
-
-    try {
-        window.speechSynthesis.speak(u);
-    } catch(e) {
-        addLog(`❌ 异常: ${e.message}`);
-    }
+    // 方法2: 服务器 Edge TTS（兜底）
+    addLog('📡 尝试服务端TTS...');
+    const audio = new Audio();
+    audio.src = '/api/tts?text=' + encodeURIComponent(text) + '&voice=normal&t=' + Date.now();
+    audio.onplay = () => addLog('▶ 服务端TTS开始...');
+    audio.onended = () => addLog('✅ 服务端TTS完成');
+    audio.onerror = () => addLog('❌ 服务端TTS失败');
+    audio.volume = 1.0;
+    audio.play().then(() => addLog('🎵 服务端TTS开始播放')).catch(e => addLog(`❌ 服务端TTS: ${e.message}`));
 }
 
 function test1() { log.textContent = ''; speakText('おはよう', 0.9, 1.0); }
