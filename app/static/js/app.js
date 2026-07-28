@@ -37,8 +37,9 @@ function getVoiceParams(text) {
 }
 
 function speak(text, rate = 0.9) {
+    // 先 cancel() 再判断——DingTalk 需要先唤醒引擎
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     if (!text || !window.speechSynthesis) return;
-    // 不调用 cancel()，避免 DingTalk 浏览器立刻取消
 
     const u = new SpeechSynthesisUtterance(text);
     u.lang = 'ja-JP';
@@ -70,7 +71,7 @@ document.addEventListener('click', function(e) {
             setVoiceMode(btn.dataset.mode);
         } else {
             const text = btn.getAttribute('data-speak');
-            if (text) speak(text);
+            speak(text || btn.textContent);
         }
     }
 });
