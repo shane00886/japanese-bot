@@ -42,83 +42,32 @@ function getVoiceParams(text) {
     }
 }
 
-// 获取最佳日语女声/童声
-function getBestVoice() {
-    // 如果 speechSynthesis 不可用，不尝试
-    if (!window.speechSynthesis) return null;
-
-    // 先尝试用 onvoiceschanged 确保语音列表已加载
+// 获取日语语音
+function getJpVoice() {
     const voices = window.speechSynthesis.getVoices();
-    if (!voices || voices.length === 0) return null;
-
-    // 女性日语声优先
-    const femaleNames = ['kyoko', 'female', 'girl', 'samantha', 'moira', 'tessa', 'veena', 'leur', 'zira', 'microsoft', '自然'];
-    for (const name of femaleNames) {
-        const found = voices.find(v =>
-            v.lang.startsWith('ja') && v.name.toLowerCase().includes(name)
-        );
+    // 优先女声: Kyoko(macOS), Microsoft(Windows), Samantha(iOS)
+    for (const name of ['kyoko', 'samantha', '微软', 'female', 'zira']) {
+        const found = voices.find(v => v.lang.startsWith('ja') && v.name.toLowerCase().includes(name));
         if (found) return found;
     }
-    // 任何日语声
-    const jp = voices.find(v => v.lang.startsWith('ja'));
-    if (jp) return jp;
-    // 任何女声（不限语言）
-    const anyFemale = voices.find(v => femaleNames.some(n => v.name.toLowerCase().includes(n)));
-    return anyFemale || voices[0] || null;
-}
-
-// 检查语音引擎是否可用
-function isSpeechAvailable() {
-    return !!window.speechSynthesis;
+    return voices.find(v => v.lang.startsWith('ja')) || voices[0];
 }
 
 function speak(text, rate = null) {
-    if (!text) return;
-
-    // 检查语音是否可用
-    if (!window.speechSynthesis) {
-        console.warn("浏览器不支持语音合成");
-        speakShowWarning();
-        return;
-    }
-
-    window.speechSynthesis.cancel();
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (!text || !window.speechSynthesis) return;
 
     const params = getVoiceParams(text);
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';
-    utterance.pitch = params.pitch;
-    utterance.rate = rate !== null ? rate : params.rate;
-    utterance.volume = 1.0;
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    u.pitch = params.pitch;
+    u.rate = rate !== null ? rate : params.rate;
+    u.volume = 1.0;
 
-    const best = getBestVoice();
-    if (best) utterance.voice = best;
+    const voice = getJpVoice();
+    if (voice) u.voice = voice;
 
-    // 语音出错时提示
-    utterance.onerror = () => {
-        console.warn("语音播放失败");
-    };
-
-    utterance.onend = () => {};
-
-    try {
-        window.speechSynthesis.speak(utterance);
-    } catch(e) {
-        console.warn("语音播放异常:", e);
-        speakShowWarning();
-    }
-}
-
-// 在页面上显示语音不可用提示（仅一次）
-let speechWarned = false;
-function speakShowWarning() {
-    if (speechWarned) return;
-    speechWarned = true;
-    const el = document.querySelector('.speech-status-banner');
-    if (el) {
-        el.style.display = 'block';
-        setTimeout(() => el.style.display = 'none', 8000);
-    }
+    window.speechSynthesis.speak(u);
 }
 
 function speakText(element) {
