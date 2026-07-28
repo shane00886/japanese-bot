@@ -22,42 +22,23 @@ function setVoiceMode(mode) {
 }
 
 // ═══════════════════════════════════════════
-// 🎵 语音朗读 - 服务端 TTS（兼容所有浏览器）
+// 🎵 语音朗读
 // ═══════════════════════════════════════════
 
 function speak(text, rate = 0.9) {
-    if (!text) return;
+    if (!text || !window.speechSynthesis) return;
 
-    // 先试浏览器 Speech API（速度快）
-    if (window.speechSynthesis) {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'ja-JP';
-        u.rate = rate;
-        u.volume = 1.0;
-        if (voiceMode === 'shinchan') u.pitch = 2.0;
-        else if (voiceMode === 'misae') u.pitch = 0.7;
-        else u.pitch = 1.0;
-        const voices = window.speechSynthesis.getVoices();
-        const jpVoice = voices.find(v => v.lang.startsWith('ja'));
-        if (jpVoice) u.voice = jpVoice;
-        window.speechSynthesis.speak(u);
-    }
-
-    // 同时用服务端 TTS 兜底（DingTalk 浏览器需要这个）
-    speakServer(text);
-}
-
-let currentAudio = null;
-
-function speakServer(text) {
-    // 停止之前的服务端音频
-    if (currentAudio) { currentAudio.pause(); currentAudio = null; }
-
-    const audio = new Audio();
-    currentAudio = audio;
-    audio.src = `/api/tts?text=${encodeURIComponent(text)}&voice=${voiceMode}&t=${Date.now()}`;
-    audio.volume = 1.0;
-    audio.play().catch(e => console.log('服务端 TTS 播放:', e.message));
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    u.rate = rate;
+    u.volume = 1.0;
+    if (voiceMode === 'shinchan') u.pitch = 2.0;
+    else if (voiceMode === 'misae') u.pitch = 0.7;
+    else u.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const jpVoice = voices.find(v => v.lang.startsWith('ja'));
+    if (jpVoice) u.voice = jpVoice;
+    window.speechSynthesis.speak(u);
 }
 
 // 恢复上次选择的音色

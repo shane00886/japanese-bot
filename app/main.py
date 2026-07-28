@@ -67,39 +67,13 @@ def health():
 
 
 # ═══════════════════════════════════════════
-# TTS 语音合成 API（Edge TTS 服务器端生成）
+# TTS 语音合成 API
 # ═══════════════════════════════════════════
-
-import edge_tts
-
-# Edge TTS 日语语音选项
-TTS_VOICES = {
-    "normal": "ja-JP-NanamiNeural",
-    "shinchan": "ja-JP-NanamiNeural",
-    "misae": "ja-JP-NanamiNeural",
-}
-
-AUDIO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "audio")
-os.makedirs(AUDIO_DIR, exist_ok=True)
-
 
 @app.get("/api/tts")
 async def api_tts(text: str = "こんにちは", voice: str = "normal"):
-    """TTS 语音合成，返回 MP3 音频"""
-    voice_name = TTS_VOICES.get(voice, TTS_VOICES["normal"])
-    file_id = hashlib.md5(f"{text}_{voice_name}".encode()).hexdigest()
-    file_path = os.path.join(AUDIO_DIR, f"{file_id}.mp3")
-
-    if not os.path.exists(file_path):
-        try:
-            communicate = edge_tts.Communicate(text, voice_name)
-            await communicate.save(file_path)
-        except Exception as e:
-            return {"error": str(e)}
-
-    if os.path.exists(file_path):
-        return FileResponse(file_path, media_type="audio/mpeg")
-    return {"error": "生成失败"}
+    """已移除服务端 TTS（Edge TTS 在服务器上被微软限制），请使用浏览器 Speech API"""
+    return {"message": "请使用 Chrome/Safari 浏览器打开获得语音支持", "text": text}
 
 
 # ═══════════════════════════════════════════

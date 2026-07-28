@@ -3,4 +3,3 @@ uvicorn==0.51.0
 requests==2.34.2
 python-dotenv==1.2.2
 apscheduler==3.11.3
-edge-tts==6.1.3
