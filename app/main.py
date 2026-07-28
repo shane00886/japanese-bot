@@ -53,6 +53,11 @@ def root():
     return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
 
+@app.get("/speech-test")
+def speech_test():
+    return FileResponse(os.path.join(STATIC_DIR, "speech-test.html"))
+
+
 @app.get("/health")
 def health():
     return {"status": "alive", "time": datetime.now().isoformat()}

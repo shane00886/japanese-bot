@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>语音测试</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{font-family:sans-serif;padding:20px;max-width:400px;margin:0 auto;text-align:center}
+button{font-size:20px;padding:16px 32px;margin:10px;border-radius:12px;border:none;background:#FF6B35;color:white;cursor:pointer}
+button:active{transform:scale(0.95)}
+#log{margin-top:20px;padding:12px;background:#f5f5f5;border-radius:8px;font-size:14px;text-align:left;min-height:60px;white-space:pre-wrap}
+</style>
+</head>
+<body>
+<h2>🔊 语音测试</h2>
+<p>点击下方按钮测试日语朗读</p>
+
+<button onclick="test1()">🔊 おはよう</button>
+<button onclick="test2()">🔊 こんにちは</button>
+<button onclick="test3()">🔊 SpeechSynthesis 检测</button>
+
+<div id="log">等待测试...</div>
+
+<script>
+const log = document.getElementById('log');
+
+function addLog(msg) {
+    log.textContent += msg + '\n';
+}
+
+// 检测语音支持
+addLog('📱 浏览器: ' + navigator.userAgent);
+
+function speakText(text, rate, pitch) {
+    addLog(`▶ 尝试朗读: ${text} (rate=${rate}, pitch=${pitch})`);
+    
+    if (!window.speechSynthesis) {
+        addLog('❌ window.speechSynthesis 不存在！');
+        return;
+    }
+    
+    window.speechSynthesis.cancel();
+    
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ja-JP';
+    u.rate = rate;
+    u.pitch = pitch;
+    u.volume = 1.0;
+    
+    // 尝试找日语语音
+    const voices = window.speechSynthesis.getVoices();
+    addLog(`📊 可用语音数: ${voices.length}`);
+    if (voices.length > 0) {
+        voices.forEach(v => addLog(`  ${v.name} (${v.lang})`));
+        const jp = voices.find(v => v.lang.startsWith('ja'));
+        if (jp) { u.voice = jp; addLog(`✅ 使用日语语音: ${jp.name}`); }
+        else addLog('⚠️ 没找到日语语音，用默认');
+    } else {
+        addLog('⚠️ 语音列表为空（过一会儿会加载）');
+    }
+    
+    u.onstart = () => addLog('▶ 开始播放...');
+    u.onend = () => addLog('✅ 播放完成');
+    u.onerror = (e) => addLog(`❌ 播放错误: ${e.error}`);
+    
+    try {
+        window.speechSynthesis.speak(u);
+    } catch(e) {
+        addLog(`❌ 异常: ${e.message}`);
+    }
+}
+
+function test1() { log.textContent = ''; speakText('おはよう', 0.9, 1.0); }
+function test2() { log.textContent = ''; speakText('こんにちは', 0.9, 2.0); }
+function test3() {
+    log.textContent = '';
+    addLog(`speechSynthesis: ${!!window.speechSynthesis}`);
+    if (window.speechSynthesis) {
+        addLog(`getVoices(): ${window.speechSynthesis.getVoices().length} 个`);
+        const v = window.speechSynthesis.getVoices();
+        v.forEach(x => addLog(`  ${x.name} (${x.lang})`));
+    }
+}
+</script>
+</body>
+</html>
