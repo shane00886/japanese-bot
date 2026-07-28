@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
     init_course_data()
     print(f"🤖 {settings.BOT_NAME} ready!")
     yield
+    print("🤖 Shutting down...")
 
 
 app = FastAPI(title=settings.BOT_NAME, lifespan=lifespan)
@@ -63,51 +64,67 @@ def health():
 
 @app.post("/webhook")
 @app.post("/callback")
-def _send_dingtalk_reply(session_webhook: str, title: str, text: str):
+def _send_dingtalk_reply(session_webhook: str, title: str, text: str, conversation_type: str = "2", sender_id: str = ""):
     """通过钉钉回调的 sessionWebhook 发送回复"""
-    if not session_webhook:
-        # 没有 sessionWebhook 则用自定义机器人
-        webhook_bot.send_markdown(title, text)
-        return
-
     payload = {
         "msgtype": "markdown",
         "markdown": {"title": title, "text": text},
     }
-    try:
-        import requests
-        requests.post(session_webhook, json=payload, timeout=10)
-    except Exception as e:
-        print(f"❌ session webhook 发送失败: {e}")
-        webhook_bot.send_markdown(title, text)
+
+    # 优先用 sessionWebhook（直接发送，钉钉官方推荐）
+    if session_webhook:
+        try:
+            import requests
+            r = requests.post(session_webhook, json=payload, timeout=10)
+            if r.ok and r.json().get("errcode") == 0:
+                return
+        except Exception as e:
+            print(f"sessionWebhook 失败: {e}")
+
+    # 退回到自定义机器人 Webhook（不影响体验）
+    webhook_bot.send_markdown(title, text)
 
 
 async def dingtalk_callback(request: Request):
     """
     钉钉消息回调入口
-    1. URL 验证（DingTalk 平台会发送加密验证请求）
-    2. 群@机器人消息
     """
-    # 钉钉 URL 验证走 GET
     if request.method == "GET":
         return {"msg": "ok"}
 
     body = await request.json()
-    print(f"📩 收到消息: {json.dumps(body, ensure_ascii=False)[:500]}")
 
-    # 处理 URL 验证请求
+    # 把收到的消息存到日志（调试用）
+    from app.models.database import get_connection
+    import time
+    try:
+        conn = get_connection()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO chat_log (user_id, message, response, intent, created_at) VALUES (?, ?, ?, ?, ?)",
+            (str(body)[:200], json.dumps(body, ensure_ascii=False)[:2000], '', 'debug', datetime.now().isoformat())
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"日志错误: {e}")
+
+    # URL 验证请求
     if body.get("msg") == "ping":
         return {"msg": "pong"}
 
     # 处理加密/非加密的消息回调
     try:
-        # 加密消息需配置加解密密钥，暂不支持
+        # 加密消息
         if "encrypt" in body:
-            print(f"⚠️ 收到加密消息（需配置加解密密钥）")
-            return {"msg": "success"}
+            print(f"⚠️ 收到加密消息（需要配置加解密密钥）")
+            # 尝试用默认 Token/AES 解密（DingTalk 默认密钥需要从后台获取）
+            # 暂时返回成功，让钉钉知道我们收到了
+            return {"msg": "success", "error": "encrypted - need AES config"}
 
         sender_id = body.get("senderId") or body.get("senderStaffId", "") or "unknown"
         session_webhook = body.get("sessionWebhook", "") or body.get("webhook", "")
+        conversation_type = body.get("conversationType", "1")  # 1=单聊 2=群聊
 
         # 提取文本
         text = ""
@@ -117,24 +134,34 @@ async def dingtalk_callback(request: Request):
         elif isinstance(msg_body, str):
             text = msg_body
 
-        # 去掉 @机器人 部分
-        text = re.sub(r'@[^\s]+', '', text).strip()
-        # 去掉首尾空白和引号
-        text = text.strip('"\' \t\n')
-        print(f"📝 处理: sender={sender_id}, text='{text}', sessionWebhook={'有' if session_webhook else '无'}")
+        text = re.sub(r'@[^\s]+', '', text).strip().strip('"\' \t\n')
 
         if not text:
             return {"msg": "success"}
 
         # 处理并回复
-        reply = handle_message(sender_id, text)
-        _send_dingtalk_reply(session_webhook, "しんちゃん先生", reply)
-        print(f"✅ 已回复: {reply[:80]}...")
+        reply = handle_message(sender_id, text, conversation_type)
+        _send_dingtalk_reply(session_webhook, "日本语先生", reply, conversation_type, sender_id)
 
     except Exception as e:
         print(f"❌ 处理错误: {e}")
+        import traceback
+        traceback.print_exc()
 
     return {"msg": "success"}
+
+
+# 调试接口 - 查看最近收到的回调
+@app.get("/debug/logs")
+def debug_logs(limit: int = 10):
+    """查看最近的回调日志"""
+    from app.models.database import get_connection
+    conn = get_connection()
+    c = conn.cursor()
+    c.execute("SELECT * FROM chat_log WHERE intent='debug' ORDER BY id DESC LIMIT ?", (limit,))
+    logs = [dict(r) for r in c.fetchall()]
+    conn.close()
+    return {"logs": logs, "count": len(logs)}
 
 
 # 同时支持 GET 请求（钉钉会发送 GET 来验证）
@@ -149,7 +176,7 @@ def dingtalk_get_callback():
 # 消息处理
 # ═══════════════════════════════════════════
 
-def handle_message(user_id: str, text: str) -> str:
+def handle_message(user_id: str, text: str, conversation_type: str = "1") -> str:
     """处理用户消息，返回中文回复"""
     text = text.strip().lower()
 

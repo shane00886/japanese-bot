@@ -4,27 +4,74 @@
 // TTS 语音朗读（浏览器 Web Speech API）
 // ═══════════════════════════════════════════
 
-function speak(text, rate = 0.9) {
-    // 停止当前朗读
-    if (window.speechSynthesis) {
-        window.speechSynthesis.cancel();
+// 音色模式: 'normal' | 'shinchan' | 'misae'
+let voiceMode = 'normal';
+
+function setVoiceMode(mode) {
+    voiceMode = mode;
+    document.querySelectorAll('.voice-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    try { localStorage.setItem('jp-voice-mode', mode); } catch(e) {}
+
+    // 切换音色后立即朗读一句，让孩子听到变化
+    setTimeout(() => {
+        const demos = {
+            'shinchan': 'オラはしんのすけ！',
+            'misae': 'しんのすけ！ご飯の時間よ！',
+            'normal': 'こんにちは。日本語を勉強しましょう。',
+        };
+        speak(demos[mode] || demos.normal);
+    }, 200);
+}
+
+// 恢复上次选择的音色
+try {
+    const saved = localStorage.getItem('jp-voice-mode');
+    if (saved) voiceMode = saved;
+} catch(e) {}
+
+function getVoiceParams(text) {
+    switch (voiceMode) {
+        case 'shinchan':
+            return { pitch: 2.0, rate: 1.3, desc: '小新音色 🦸', preferFemale: false };
+        case 'misae':
+            return { pitch: 0.7, rate: 0.75, desc: '美冴音色 👩', preferFemale: true };
+        default:
+            return { pitch: 1.2, rate: 0.85, desc: '标准音色 📖', preferFemale: true };
     }
+}
 
-    if (!text || !window.speechSynthesis) {
-        console.log("浏览器不支持语音");
-        return;
-    }
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = 'ja-JP';           // 日语发音
-    utterance.rate = rate;               // 语速（0.9 稍微慢一点）
-    utterance.pitch = 1.0;               // 音调
-    utterance.volume = 1.0;              // 音量
-
-    // 尝试使用日语语音
+// 获取最佳日语女声/童声
+function getBestVoice() {
     const voices = window.speechSynthesis.getVoices();
-    const jpVoice = voices.find(v => v.lang.startsWith('ja'));
-    if (jpVoice) utterance.voice = jpVoice;
+    // 女性日语声优先
+    const femaleNames = ['kyoko', 'female', 'girl', 'child', 'kids', 'soft'];
+    for (const name of femaleNames) {
+        const found = voices.find(v => v.lang.startsWith('ja') && v.name.toLowerCase().includes(name));
+        if (found) return found;
+    }
+    // 任何日语声
+    const jp = voices.find(v => v.lang.startsWith('ja'));
+    if (jp) return jp;
+    // 任何女声
+    const anyFemale = voices.find(v => femaleNames.some(n => v.name.toLowerCase().includes(n)));
+    return anyFemale || voices[0] || null;
+}
+
+function speak(text, rate = null) {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    if (!text || !window.speechSynthesis) return;
+
+    const params = getVoiceParams(text);
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'ja-JP';
+    utterance.pitch = params.pitch;
+    utterance.rate = rate !== null ? rate : params.rate;
+    utterance.volume = 1.0;
+
+    const best = getBestVoice();
+    if (best) utterance.voice = best;
 
     window.speechSynthesis.speak(utterance);
 }
@@ -36,20 +83,22 @@ function speakText(element) {
 
 // 点击播放按钮朗读
 document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.speak-btn');
+    const btn = e.target.closest('.speak-btn, .voice-btn');
     if (btn) {
         e.preventDefault();
-        const text = btn.getAttribute('data-speak');
-        speak(text || btn.textContent);
+        if (btn.classList.contains('voice-btn')) {
+            setVoiceMode(btn.dataset.mode);
+        } else {
+            const text = btn.getAttribute('data-speak');
+            if (text) speak(text);
+        }
     }
 });
 
-// 预加载语音列表（某些浏览器需要）
+// 预加载语音列表
 if (window.speechSynthesis) {
     window.speechSynthesis.getVoices();
-    window.speechSynthesis.onvoiceschanged = () => {
-        window.speechSynthesis.getVoices();
-    };
+    window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
 }
 
 // === 课程数据（学习内容保留日语） ===
@@ -151,6 +200,7 @@ function navigate(page) {
     if (page === 'map') renderMap();
     if (page === 'profile') renderProfile();
     if (page === 'game') startGame();
+    if (page === 'speak') startSpeak();
     if (page === 'listen') startListen();
 }
 
@@ -419,5 +469,265 @@ function renderProfile() {
     `;
 }
 
+// ═══════════════════════════════════════════
+// 🎤 声优训练营
+// ═══════════════════════════════════════════
+// 🎤 声优训练营 - 带语音识别自动评分
+// ═══════════════════════════════════════════
+
+const SPEAK_SENTENCES = (() => {
+    const s = [];
+    LESSONS.forEach(l => l.vocab.forEach(v => s.push({ jp: v.jp, kana: v.kana, cn: v.cn, type: 'word' })));
+    SHINCHAN_QUOTES.forEach(q => s.push({ jp: q.jp.replace(/[「」]/g, ''), kana: '', cn: q.cn, type: 'shinchan' }));
+    return s;
+})();
+
+function speakScore(similarity) {
+    if (similarity >= 0.9) return { stars: 3, str: '⭐⭐⭐', label: '🎉 完美！太棒了！', color: '#00B894', pass: true };
+    if (similarity >= 0.7) return { stars: 2, str: '⭐⭐', label: '👍 不错哦！继续加油！', color: '#FDCB6E', pass: true };
+    if (similarity >= 0.5) return { stars: 1, str: '⭐', label: '🤔 再练一遍吧！', color: '#E17055', pass: false };
+    return { stars: 0, str: '☆', label: '😅 没听清，再试一次！', color: '#D63031', pass: false };
+}
+
+function speakSimilarity(a, b) {
+    a = a.replace(/[　 .,!?。、！？]/g, '').toLowerCase();
+    b = b.replace(/[　 .,!?。、！？]/g, '').toLowerCase();
+    if (a === b) return 1.0;
+    if (!a || !b) return 0;
+    let matches = 0;
+    for (const ch of a) { if (b.includes(ch)) matches++; }
+    return matches / Math.max(a.length, b.length);
+}
+
+let speakState = { sentences: [], current: 0, completed: 0, totalScore: 0, recording: false, mediaRecorder: null, audioChunks: [], audioUrl: null, recognizer: null };
+
+function startSpeak() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const shuffled = [...SPEAK_SENTENCES].sort(() => Math.random() - 0.5).slice(0, 6);
+    let recog = null;
+    if (SR) { recog = new SR(); recog.lang = 'ja-JP'; recog.continuous = false; recog.interimResults = false; recog.maxAlternatives = 3; }
+    speakState = { sentences: shuffled, current: 0, completed: 0, totalScore: 0, recording: false, mediaRecorder: null, audioChunks: [], audioUrl: null, recognizer: recog };
+    document.getElementById('speak-result').style.display = 'none';
+    document.getElementById('speak-area').style.display = 'block';
+    document.getElementById('speak-total').textContent = shuffled.length;
+    document.getElementById('speak-mode-label').textContent = shuffled.some(s => s.type === 'shinchan') ? '🎭 声优挑战' : '🗣️ 跟读模仿';
+    showSpeakSentence();
+}
+
+function showSpeakSentence() {
+    if (speakState.current >= speakState.sentences.length) { endSpeak(); return; }
+    const s = speakState.sentences[speakState.current];
+    document.getElementById('speak-num').textContent = speakState.current + 1;
+    document.getElementById('speak-jp').textContent = s.jp;
+    document.getElementById('speak-kana').textContent = s.kana || s.jp;
+
+    if (s.type === 'shinchan') {
+        document.getElementById('speak-role-icon').textContent = '🦸';
+        document.getElementById('speak-role-name').textContent = '🎭 声优挑战！';
+        document.getElementById('speak-role-desc').textContent = '像小新一样大声说出来！';
+    } else {
+        document.getElementById('speak-role-icon').textContent = '🗣️';
+        document.getElementById('speak-role-name').textContent = '跟读模仿';
+        document.getElementById('speak-role-desc').textContent = '听原声，跟着读';
+    }
+
+    // 重置评分区
+    document.getElementById('speak-score-area').style.display = 'none';
+    document.getElementById('speak-score-detail').innerHTML = '';
+    document.getElementById('speak-record-area').style.display = 'flex';
+    document.getElementById('speak-score-actions').style.display = 'none';
+    document.getElementById('speak-status').textContent = '👆 先听原声！';
+    document.getElementById('speak-status').className = 'speak-status';
+    document.getElementById('speak-listen-btn').disabled = false;
+    document.getElementById('speak-record-btn').disabled = false;
+    document.getElementById('speak-playback-btn').disabled = true;
+
+    speakState.audioUrl = null; speakState.recording = false;
+    document.getElementById('speak-record-icon').textContent = '🎤';
+    document.getElementById('speak-record-label').textContent = '点我说话';
+    document.getElementById('speak-record-btn').className = 'speak-action-btn speak-record-btn';
+
+    setTimeout(() => speak(s.jp, 0.85), 300);
+}
+
+function speakListenPlay() {
+    const s = speakState.sentences[speakState.current];
+    speak(s.jp, 0.85);
+    document.getElementById('speak-status').textContent = '🔊 听清楚了吗？点 🎤 读一遍！';
+}
+
+function speakToggleRecord() {
+    if (speakState.recording) { speakStopRecord(); } else { speakStartRecord(); }
+}
+
+function speakStartRecord() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        document.getElementById('speak-status').textContent = '⚠️ 浏览器不支持录音，请用手机 Chrome 打开！';
+        return;
+    }
+    navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        speakState.recording = true; speakState.audioChunks = [];
+        document.getElementById('speak-record-icon').textContent = '⏹️';
+        document.getElementById('speak-record-label').textContent = '松手停止';
+        document.getElementById('speak-record-btn').classList.add('active');
+        document.getElementById('speak-status').textContent = '🎤 在说话！大声读出来！';
+
+        const recorder = new MediaRecorder(stream);
+        speakState.mediaRecorder = recorder;
+        recorder.ondataavailable = e => speakState.audioChunks.push(e.data);
+        recorder.onstop = () => {
+            stream.getTracks().forEach(t => t.stop());
+            const blob = new Blob(speakState.audioChunks, { type: 'audio/webm' });
+            speakState.audioUrl = URL.createObjectURL(blob);
+            document.getElementById('speak-playback-btn').disabled = false;
+            // 录音结束 → 自动评分
+            speakAutoScore();
+        };
+        recorder.start();
+    }).catch(() => {
+        document.getElementById('speak-status').textContent = '⚠️ 无法访问麦克风，请允许录音权限！';
+    });
+}
+
+function speakStopRecord() {
+    if (speakState.mediaRecorder && speakState.mediaRecorder.state === 'recording') speakState.mediaRecorder.stop();
+    speakState.recording = false;
+}
+
+function speakPlayback() {
+    if (speakState.audioUrl) { const a = new Audio(speakState.audioUrl); a.play(); }
+}
+
+/** ⭐ 自动评分 */
+function speakAutoScore() {
+    const s = speakState.sentences[speakState.current];
+    const expected = s.kana || s.jp;
+
+    document.getElementById('speak-record-area').style.display = 'none';
+    document.getElementById('speak-score-area').style.display = 'block';
+    document.getElementById('speak-score-actions').style.display = 'flex';
+    document.getElementById('speak-score-detail').innerHTML = `
+        <div style="text-align:center;padding:20px;">
+            <div style="font-size:24px;margin-bottom:8px;">⏳</div>
+            <div style="font-size:16px;color:var(--text-light);">正在识别你的发音……</div>
+        </div>`;
+
+    // 尝试语音识别
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SR) {
+        const recog = new SR();
+        recog.lang = 'ja-JP';
+        recog.continuous = false;
+        recog.interimResults = false;
+        recog.maxAlternatives = 3;
+
+        let done = false;
+
+        recog.onresult = (event) => {
+            if (done) return; done = true;
+            let heard = '';
+            for (let i = 0; i < event.results.length; i++) {
+                if (event.results[i].isFinal) { heard = event.results[i][0].transcript; break; }
+            }
+            const similarity = speakSimilarity(heard, expected);
+            const score = speakScore(similarity);
+            speakState.totalScore += score.stars;
+            document.getElementById('speak-score-detail').innerHTML = showScoreUI(score, heard);
+            if (!score.pass) {
+                document.getElementById('speak-score-actions').innerHTML =
+                    `<button class="btn btn-outline btn-small" onclick="speakRetry()">🔄 再练一遍</button>` +
+                    `<button class="btn btn-primary btn-small" onclick="speakAdvance()">✅ 我觉得可以了，继续</button>`;
+            } else {
+                document.getElementById('speak-score-actions').innerHTML =
+                    `<button class="btn btn-primary btn-small" onclick="speakAdvance()">✅ 继续下一句</button>`;
+            }
+        };
+
+        recog.onerror = () => {
+            if (done) return; done = true;
+            speakState.totalScore += 2;
+            showManualScore();
+        };
+
+        recog.onend = () => {
+            if (!done) {
+                done = true;
+                speakState.totalScore += 2;
+                showManualScore();
+            }
+        };
+
+        try { recog.start(); } catch(e) { showManualScore(); }
+        // 8秒超时降级
+        setTimeout(() => { if (!done) { done = true; speakState.totalScore += 2; showManualScore(); } }, 8000);
+    } else {
+        speakState.totalScore += 2;
+        showManualScore();
+    }
+}
+
+function showManualScore() {
+    document.getElementById('speak-score-detail').innerHTML = `
+        <div style="text-align:center;padding:16px;">
+            <div style="font-size:32px;margin-bottom:4px;">⭐⭐ 听听自己的录音</div>
+            <div style="font-size:14px;color:var(--text-light);margin:8px 0;">
+                点 ▶️ 听听自己说的，跟原声比较一下
+            </div>
+            <div style="display:flex;gap:8px;justify-content:center;margin-top:8px;">
+                <button class="btn btn-outline btn-small" onclick="speakListenPlay()">🔊 听原声</button>
+                <button class="btn btn-outline btn-small" onclick="speakPlayback()">▶️ 听自己</button>
+            </div>
+        </div>`;
+    document.getElementById('speak-score-actions').innerHTML =
+        `<button class="btn btn-outline btn-small" onclick="speakRetry()">🔄 再练一遍</button>` +
+        `<button class="btn btn-primary btn-small" onclick="speakAdvance()">✅ 我觉得可以，继续</button>`;
+}
+
+function speakAdvance() {
+    const s = speakState.sentences[speakState.current];
+    speakState.completed++;
+    speakState.current++;
+    if (speakState.current < speakState.sentences.length) { showSpeakSentence(); } else { endSpeak(); }
+}
+
+function speakRetry() {
+    // 不计数，原地重练
+    showSpeakSentence();
+}
+
+function showScoreUI(score, heard) {
+    return `
+        <div style="text-align:center;padding:12px;">
+            <div style="font-size:32px;margin-bottom:4px;">${score.str}</div>
+            <div style="font-size:18px;font-weight:700;color:${score.color};">${score.label}</div>
+            <div style="font-size:13px;color:var(--text-light);margin-top:8px;">
+                你说的是：<span style="color:var(--primary);font-weight:600;">${heard || '（没识别到）'}</span>
+            </div>
+            <div style="font-size:13px;color:var(--text-light);">
+                原句是：<span style="font-weight:600;">${speakState.sentences[speakState.current].jp}</span>
+            </div>
+        </div>`;
+}
+
+function endSpeak() {
+    document.getElementById('speak-area').style.display = 'none';
+    document.getElementById('speak-result').style.display = 'block';
+    const total = speakState.sentences.length;
+    const avg = total > 0 ? (speakState.totalScore / total) : 0;
+    let title, sub;
+    if (avg >= 2.5) { title = '🏆 太棒了！金牌声优！'; sub = `平均 ${avg.toFixed(1)} 星！`; }
+    else if (avg >= 1.5) { title = '⭐ 不错！继续加油！'; sub = `平均 ${avg.toFixed(1)} 星`; }
+    else { title = '💪 多练几次会更好！'; sub = `平均 ${avg.toFixed(1)} 星`; }
+    document.getElementById('speak-result-title').textContent = title;
+    document.getElementById('speak-result-text').textContent = `今天学了 ${total} 句 · ${sub}`;
+}
+
 // === 启动 ===
-document.addEventListener('DOMContentLoaded', refreshHome);
+document.addEventListener('DOMContentLoaded', () => {
+    // 恢复上次选择的音色
+    try {
+        const saved = localStorage.getItem('jp-voice-mode');
+        if (saved) setVoiceMode(saved);
+    } catch(e) {}
+    refreshHome();
+});
