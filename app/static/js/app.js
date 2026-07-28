@@ -25,28 +25,6 @@ function setVoiceMode(mode) {
 // 🎵 语音朗读
 // ═══════════════════════════════════════════
 
-function speak(text, rate = 0.9) {
-    if (!text || !window.speechSynthesis) return;
-
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ja-JP';
-    u.rate = rate;
-    u.volume = 1.0;
-    if (voiceMode === 'shinchan') u.pitch = 2.0;
-    else if (voiceMode === 'misae') u.pitch = 0.7;
-    else u.pitch = 1.0;
-    const voices = window.speechSynthesis.getVoices();
-    const jpVoice = voices.find(v => v.lang.startsWith('ja'));
-    if (jpVoice) u.voice = jpVoice;
-    window.speechSynthesis.speak(u);
-}
-
-// 恢复上次选择的音色
-try {
-    const saved = localStorage.getItem('jp-voice-mode');
-    if (saved) voiceMode = saved;
-} catch(e) {}
-
 function getVoiceParams(text) {
     switch (voiceMode) {
         case 'shinchan':
