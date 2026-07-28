@@ -70,14 +70,13 @@ def health():
 # TTS 语音合成 API（Edge TTS 服务器端生成）
 # ═══════════════════════════════════════════
 
-import subprocess
-import uuid
+import edge_tts
 
 # Edge TTS 日语语音选项
 TTS_VOICES = {
-    "normal": "ja-JP-NanamiNeural",    # 标准女声
-    "shinchan": "ja-JP-NanamiNeural",  # 用女声后调音高
-    "misae": "ja-JP-NanamiNeural",     # 用女声后调音高
+    "normal": "ja-JP-NanamiNeural",
+    "shinchan": "ja-JP-NanamiNeural",
+    "misae": "ja-JP-NanamiNeural",
 }
 
 AUDIO_DIR = os.path.join(os.path.dirname(__file__), "..", "data", "audio")
@@ -86,27 +85,15 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 
 @app.get("/api/tts")
 async def api_tts(text: str = "こんにちは", voice: str = "normal"):
-    """
-    TTS 语音合成
-    GET /api/tts?text=おはよう&voice=shinchan
-    返回 MP3 音频文件
-    """
+    """TTS 语音合成，返回 MP3 音频"""
     voice_name = TTS_VOICES.get(voice, TTS_VOICES["normal"])
     file_id = hashlib.md5(f"{text}_{voice_name}".encode()).hexdigest()
     file_path = os.path.join(AUDIO_DIR, f"{file_id}.mp3")
 
-    # 缓存已生成的音频
     if not os.path.exists(file_path):
         try:
-            proc = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "edge_tts",
-                "--text", text,
-                "--voice", voice_name,
-                "--write-media", file_path,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await proc.wait()
+            communicate = edge_tts.Communicate(text, voice_name)
+            await communicate.save(file_path)
         except Exception as e:
             return {"error": str(e)}
 
