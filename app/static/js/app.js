@@ -44,24 +44,45 @@ function getVoiceParams(text) {
 
 // 获取最佳日语女声/童声
 function getBestVoice() {
+    // 如果 speechSynthesis 不可用，不尝试
+    if (!window.speechSynthesis) return null;
+
+    // 先尝试用 onvoiceschanged 确保语音列表已加载
     const voices = window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
     // 女性日语声优先
-    const femaleNames = ['kyoko', 'female', 'girl', 'child', 'kids', 'soft'];
+    const femaleNames = ['kyoko', 'female', 'girl', 'samantha', 'moira', 'tessa', 'veena', 'leur', 'zira', 'microsoft', '自然'];
     for (const name of femaleNames) {
-        const found = voices.find(v => v.lang.startsWith('ja') && v.name.toLowerCase().includes(name));
+        const found = voices.find(v =>
+            v.lang.startsWith('ja') && v.name.toLowerCase().includes(name)
+        );
         if (found) return found;
     }
     // 任何日语声
     const jp = voices.find(v => v.lang.startsWith('ja'));
     if (jp) return jp;
-    // 任何女声
+    // 任何女声（不限语言）
     const anyFemale = voices.find(v => femaleNames.some(n => v.name.toLowerCase().includes(n)));
     return anyFemale || voices[0] || null;
 }
 
+// 检查语音引擎是否可用
+function isSpeechAvailable() {
+    return !!window.speechSynthesis;
+}
+
 function speak(text, rate = null) {
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    if (!text || !window.speechSynthesis) return;
+    if (!text) return;
+
+    // 检查语音是否可用
+    if (!window.speechSynthesis) {
+        console.warn("浏览器不支持语音合成");
+        speakShowWarning();
+        return;
+    }
+
+    window.speechSynthesis.cancel();
 
     const params = getVoiceParams(text);
     const utterance = new SpeechSynthesisUtterance(text);
@@ -73,7 +94,31 @@ function speak(text, rate = null) {
     const best = getBestVoice();
     if (best) utterance.voice = best;
 
-    window.speechSynthesis.speak(utterance);
+    // 语音出错时提示
+    utterance.onerror = () => {
+        console.warn("语音播放失败");
+    };
+
+    utterance.onend = () => {};
+
+    try {
+        window.speechSynthesis.speak(utterance);
+    } catch(e) {
+        console.warn("语音播放异常:", e);
+        speakShowWarning();
+    }
+}
+
+// 在页面上显示语音不可用提示（仅一次）
+let speechWarned = false;
+function speakShowWarning() {
+    if (speechWarned) return;
+    speechWarned = true;
+    const el = document.querySelector('.speech-status-banner');
+    if (el) {
+        el.style.display = 'block';
+        setTimeout(() => el.style.display = 'none', 8000);
+    }
 }
 
 function speakText(element) {
