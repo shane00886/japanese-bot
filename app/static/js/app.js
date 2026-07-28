@@ -22,39 +22,61 @@ function setVoiceMode(mode) {
 }
 
 // ═══════════════════════════════════════════
-// 🎵 语音朗读
+// 🎵 语音朗读（双引擎）
 // ═══════════════════════════════════════════
 
-function getVoiceParams(text) {
-    switch (voiceMode) {
-        case 'shinchan':
-            return { pitch: 2.0, rate: 1.3, desc: '小新音色 🦸', preferFemale: false };
-        case 'misae':
-            return { pitch: 0.7, rate: 0.75, desc: '美冴音色 👩', preferFemale: true };
-        default:
-            return { pitch: 1.2, rate: 0.85, desc: '标准音色 📖', preferFemale: true };
+let _audioCtx = null;
+const _audioCache = {};
+
+function getAudioContext() {
+    if (!_audioCtx) {
+        _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (_audioCtx.state === 'suspended') _audioCtx.resume();
+    return _audioCtx;
+}
+
+async function speakServer(text) {
+    try {
+        const ctx = getAudioContext();
+        let buffer = _audioCache[text];
+        if (!buffer) {
+            const res = await fetch(`/api/tts?text=${encodeURIComponent(text)}&t=${Date.now()}`);
+            if (!res.ok) return;
+            const arr = await res.arrayBuffer();
+            buffer = await ctx.decodeAudioData(arr);
+            _audioCache[text] = buffer;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        source.start();
+    } catch(e) {
+        console.log('服务端 TTS 失败:', e.message);
     }
 }
 
 function speak(text, rate = 0.9) {
-    // 先 cancel() 再判断——DingTalk 需要先唤醒引擎
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    if (!text || !window.speechSynthesis) return;
+    if (!text) return;
 
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'ja-JP';
-    u.rate = rate;
-    u.volume = 1.0;
+    // 方案1: Web Audio API 解码服务端 MP3（DingTalk 兼容）
+    speakServer(text);
 
-    if (voiceMode === 'shinchan') u.pitch = 2.0;
-    else if (voiceMode === 'misae') u.pitch = 0.7;
-    else u.pitch = 1.0;
-
-    const voices = window.speechSynthesis.getVoices();
-    const jpVoice = voices.find(v => v.lang.startsWith('ja'));
-    if (jpVoice) u.voice = jpVoice;
-
-    window.speechSynthesis.speak(u);
+    // 方案2: 浏览器 Speech API（Chrome/Safari）
+    if (window.speechSynthesis) {
+        try {
+            window.speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            u.lang = 'ja-JP'; u.rate = rate; u.volume = 1.0;
+            if (voiceMode === 'shinchan') u.pitch = 2.0;
+            else if (voiceMode === 'misae') u.pitch = 0.7;
+            else u.pitch = 1.0;
+            const voices = window.speechSynthesis.getVoices();
+            const jpVoice = voices.find(v => v.lang.startsWith('ja'));
+            if (jpVoice) u.voice = jpVoice;
+            window.speechSynthesis.speak(u);
+        } catch(e) {}
+    }
 }
 
 function speakText(element) {
