@@ -582,6 +582,8 @@ function speakStartRecord() {
             stream.getTracks().forEach(t => t.stop());
             const blob = new Blob(speakState.audioChunks, { type: 'audio/webm' });
             speakState.audioUrl = URL.createObjectURL(blob);
+            // 存原始数据用于 Web Audio 回放
+            blob.arrayBuffer().then(buf => speakState.audioData = buf);
             document.getElementById('speak-playback-btn').disabled = false;
             // 录音结束 → 自动评分
             speakAutoScore();
@@ -595,10 +597,23 @@ function speakStartRecord() {
 function speakStopRecord() {
     if (speakState.mediaRecorder && speakState.mediaRecorder.state === 'recording') speakState.mediaRecorder.stop();
     speakState.recording = false;
+    speakState.audioData = null; // 存原始二进制数据（用于 Web Audio 回放）
 }
 
 function speakPlayback() {
-    if (speakState.audioUrl) { const a = new Audio(speakState.audioUrl); a.play(); }
+    if (!speakState.audioUrl) return;
+    // 用 Web Audio API 播放录音（DingTalk 兼容）
+    try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        ctx.decodeAudioData(speakState.audioData, (buffer) => {
+            const source = ctx.createBufferSource();
+            source.buffer = buffer;
+            source.connect(ctx.destination);
+            source.start();
+        });
+    } catch(e) {
+        console.log('回放失败:', e);
+    }
 }
 
 /** ⭐ 自动评分 */
