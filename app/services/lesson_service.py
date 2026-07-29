@@ -172,3 +172,29 @@ def record_checkin(user_id: str, xp_earned: int = 25):
 
     conn.commit()
     conn.close()
+
+
+def add_xp(user_id: str, xp: int):
+    """增加经验值"""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE users SET xp = xp + ? WHERE user_id = ?", (xp, user_id))
+    # 自动升级
+    cursor.execute("""
+        UPDATE users SET level = 
+            CASE 
+                WHEN xp >= 500 THEN 'N1'
+                WHEN xp >= 300 THEN 'N2'
+                WHEN xp >= 150 THEN 'N3'
+                WHEN xp >= 50 THEN 'N4'
+                ELSE 'N5'
+            END
+        WHERE user_id = ?
+    """, (user_id,))
+    conn.commit()
+    conn.close()
+
+
+def get_level_emoji(level: str) -> str:
+    emoji = {"N5": "📘", "N4": "📗", "N3": "⭐", "N2": "🎯", "N1": "🔥"}
+    return emoji.get(level, "📘")
