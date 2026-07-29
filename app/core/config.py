@@ -13,6 +13,7 @@ class Settings:
     DINGTALK_WEBHOOK_URL: str = os.getenv("DINGTALK_WEBHOOK_URL", "")
     DINGTALK_WEBHOOK_SECRET: str = os.getenv("DINGTALK_WEBHOOK_SECRET", "")
     BOT_NAME: str = os.getenv("BOT_NAME", "しんちゃんの日本語先生")
+    BASE_URL: str = os.getenv("BASE_URL", "https://japanese-bot-g5pq.onrender.com")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///data/jp_bot.db")
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))

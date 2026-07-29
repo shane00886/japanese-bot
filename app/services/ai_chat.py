@@ -4,8 +4,9 @@
 
 import json
 import re
-import urllib.request
 import random
+import urllib.request
+import urllib.parse
 from app.core.config import settings
 
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
@@ -191,11 +192,21 @@ def ask_ai(user_message: str, user_id: str = "") -> str:
         return None
 
 
+def add_audio_link(text: str) -> str:
+    """在回复中添加发音链接"""
+    # 提取回复中的日语关键词（如果有）
+    import re
+    jp_words = re.findall(r'[一-龠ぁ-んァ-ヶーa-zA-Z]+', text.split('\n')[0])
+    if jp_words:
+        word = jp_words[0]
+        audio_url = f"{settings.BASE_URL}/api/tts?text={urllib.parse.quote(word)}"
+        return text + f"\n\n🔊 点我发音 → {audio_url}"
+    return text
+
+
 def process_smart(user_id: str, text: str) -> str:
     """主智能处理: AI优先 → NLP兜底"""
-    # 先试 AI
     ai_reply = ask_ai(text, user_id)
     if ai_reply:
-        return ai_reply
-    # AI 不可用 → NLP
-    return smart_fallback(user_id, text)
+        return add_audio_link(ai_reply)
+    return add_audio_link(smart_fallback(user_id, text))
