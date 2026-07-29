@@ -16,6 +16,7 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///data/jp_bot.db")
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8000"))
+    DEEPSEEK_API_KEY: str = os.getenv("DEEPSEEK_API_KEY", "")
 
 
 settings = Settings()

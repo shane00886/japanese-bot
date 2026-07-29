@@ -36,82 +36,52 @@ def xp_reward(xp: int) -> str:
 def process_message(user_id: str, text: str) -> str:
     """
     处理用户消息，返回回复内容
-    支持自然对话状态机
+    优先使用 AI 理解，降级到关键词匹配
     """
     text = text.strip()
+
+    # 先试 AI
+    from app.services.ai_chat import ask_ai
+    ai_reply = ask_ai(text, user_id)
+    if ai_reply:
+        return ai_reply
+
+    # AI 不可用，走 NLP 兜底
+    return _keyword_match(user_id, text)
+
+
+def process_message(user_id: str, text: str) -> str:
+    """新入口：使用 AI 智能对话"""
+    from app.services.ai_chat import process_smart
+    return process_smart(user_id, text)
+
+
+def _keyword_match(user_id: str, text: str) -> str:
+    """关键词匹配兜底"""
     state = get_state(user_id)
 
-    # ── 1. 打招呼 ──
-    if _match(text, ["你好", "您好", "嗨", "hi", "hello", "こんにちは", "早", "早上好", "晚上好", "在吗", "在不在"]):
+    if _match(text, ["你好", "您好", "嗨", "hi", "hello"]):
         return _greeting(user_id)
-
-    # ── 2. 想学日语 / 教教我 ──
-    if _match(text, ["想学", "教我", "学日语", "教日语", "开始学", "学习", "学什么", "今天学", "有什么", "能教我", "好吗", "好的", "好啊", "好呀", "好哦", "行", "可以", "来吧", "开始", "讲", "上课"]):
+    if _match(text, ["想学", "教我", "学日语", "教日语", "开始学", "学习", "今天学", "能教我", "好的", "好啊", "行", "可以", "来吧", "开始", "上课"]):
         return _start_teaching(user_id)
-
-    # ── 3. 查单词 ──
-    if any(kw in text for kw in ["怎么说", "什么意思", "翻译", "用日语", "用日语怎么说", "日语是"]):
+    if any(kw in text for kw in ["怎么说", "什么意思", "翻译", "用日语"]):
         return _lookup_word(text)
-
-    # ── 4. 小新 ──
     if _match(text, ["小新", "新之助", "蜡笔小新", "しんちゃん"]):
         return _shinchan_reply()
-
-    # ── 5. 考我 / 出题 ──
-    if _match(text, ["考考我", "出题", "考试", "考我", "测验", "提问", "问我", "测试", "出道题", "做题"]):
+    if _match(text, ["考考我", "出题", "考试", "考我", "测验", "测试", "做题"]):
         return _start_quiz(user_id)
-
-    # ── 6. 打卡 ──
-    if _match(text, ["打卡", "签到", "学完了", "完成了", "做完"]):
+    if _match(text, ["打卡", "签到", "学完了", "完成了"]):
         from app.services.lesson_service import record_checkin, get_user_progress
         record_checkin(user_id)
         p = get_user_progress(user_id)
-        return (
-            f"✅ 打卡成功！🔥 连续 {p['streak_days']} 天\n"
-            f"💎 经验值 +25（累计 {p['xp']}）\n\n"
-            f"你是最棒的！明天继续加油哦！💪"
-        )
-
-    # ── 7. 进度 ──
-    if _match(text, ["进度", "成绩", "等级", "经验", "我多少", "我的"]):
+        return f"✅ 打卡成功！🔥 {(p.get('streak_days', 0))} 天\n💎 +25XP（累计 {p.get('xp', 0)}）"
+    if _match(text, ["进度", "成绩", "等级", "经验", "我多少"]):
         from app.services.lesson_service import get_user_progress, get_level_emoji
         p = get_user_progress(user_id)
-        lesson = p.get("current_lesson")
-        title = lesson["title"] if lesson else "全部完成！🎉"
-        emoji = get_level_emoji(p["level"])
-        return (
-            f"📊 **{p['level']} {emoji} 的学习报告**\n"
-            f"━━━━━━━━━━━━━━━━\n"
-            f"🎖️ 等级：{p['level']} {emoji}\n"
-            f"💎 经验值：{p['xp']}\n"
-            f"🔥 连续学习：{p['streak_days']} 天\n"
-            f"📖 当前：{title}\n"
-            f"📈 进度：{p['progress_pct']}%\n"
-            f"━━━━━━━━━━━━━━━━\n"
-            f"继续加油哦！🎯"
-        )
-
-    # ── 8. 复习 ──
-    if _match(text, ["复习", "回顾", "再学一遍", "忘记了", "忘了"]):
-        return _start_review(user_id)
-
-    # ── 9. 回答测验（如果当前处于 quiz 模式） ──
+        emoji = get_level_emoji(p.get("level", "N5"))
+        return f"📊 {p.get('level', 'N5')} {emoji} | 💎{p.get('xp', 0)} | 🔥{p.get('streak_days', 0)}天"
     if state["mode"] == "quiz" and state.get("quiz_word"):
         return _check_answer(user_id, text, state)
-
-    # ── 10. 刚教完一个词，用户回应了──
-    if state["mode"] == "teaching":
-        state["mode"] = "idle"
-        # 用户回应了教学，给一点经验
-        from app.services.lesson_service import add_xp
-        add_xp(user_id, 5)
-        return (
-            f"真棒！记住「{state['last_word']['japanese']}」了哦！\n"
-            f"😊 还想学别的吗？说「教我」就好！\n"
-            f"也可以说「考考我」试试记住了没有！"
-        )
-
-    # ── 11. 兜底 ──
     return _fallback_reply(user_id)
 
 

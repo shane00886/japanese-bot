@@ -167,6 +167,15 @@ async def dingtalk_callback(request: Request):
         elif isinstance(msg_body, str):
             text = msg_body
 
+        # 语音消息（钉钉自动转文字）
+        if not text and body.get("msgtype") == "voice":
+            text = body.get("recognition", "")
+            print(f"🎤 语音识别: {text}")
+
+        # 如果还没提取到文字，检查其他常见字段
+        if not text:
+            text = body.get("text", "") or body.get("content", "") or ""
+
         text = re.sub(r'@[^\s]+', '', text).strip().strip('"\' \t\n')
 
         if not text:
