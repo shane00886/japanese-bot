@@ -347,13 +347,15 @@ def api_complete_lesson(user_id: str, lesson_id: str):
     from app.models.database import get_connection
     from app.services.lesson_service import add_xp, get_user_progress
 
+    from datetime import date
+
     conn = get_connection()
     cursor = conn.cursor()
 
     # 记录完成
     cursor.execute(
-        "INSERT OR IGNORE INTO daily_practice (user_id, lesson_id, ptype, score, total) VALUES (?, ?, ?, ?, ?)",
-        (user_id, lesson_id, "lesson", 10, 10)
+        "INSERT OR IGNORE INTO daily_practice (user_id, practice_date, lesson_id, type, score, total) VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, date.today().isoformat(), lesson_id, "lesson", 10, 10)
     )
     conn.commit()
     conn.close()
