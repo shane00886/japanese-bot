@@ -95,8 +95,6 @@ async def api_tts(text: str = "こんにちは", voice: str = "normal"):
 # 钉钉回调入口（接收群@消息）
 # ═══════════════════════════════════════════
 
-@app.post("/webhook")
-@app.post("/callback")
 def _send_dingtalk_reply(session_webhook: str, title: str, text: str, conversation_type: str = "2", sender_id: str = ""):
     """通过钉钉回调的 sessionWebhook 发送回复"""
     payload = {
@@ -118,6 +116,8 @@ def _send_dingtalk_reply(session_webhook: str, title: str, text: str, conversati
     webhook_bot.send_markdown(title, text)
 
 
+@app.post("/webhook")
+@app.post("/callback")
 async def dingtalk_callback(request: Request):
     """
     钉钉消息回调入口
