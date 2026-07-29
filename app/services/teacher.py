@@ -99,24 +99,22 @@ def _match(text: str, keywords: list[str]) -> bool:
 def _greeting(user_id: str) -> str:
     from app.services.lesson_service import get_user_progress
     p = get_user_progress(user_id)
-    name = p.get("nickname", "小朋友")
-    hour = random.randint(6, 22)
-    if 6 <= hour < 12:
-        greet = "おはよう！早上好呀！"
-    elif 12 <= hour < 18:
-        greet = "こんにちは！下午好！"
-    else:
-        greet = "こんばんは！晚上好！"
+    streak = p.get("streak_days", 0)
 
-    replies = [
-        f"{greet} {name}！\n"
-        f"我是しんちゃん的日语老师 🤖\n"
-        f"说「教我」就可以开始学日语啦！",
-
-        f"{greet} 🌞\n"
-        f"今天想学日语吗？说「教我」开始！",
-    ]
-    return random.choice(replies)
+    return (
+        f"🎌 **こんにちは！我是しんちゃん！**\n\n"
+        f"我是你的日语小老师，今年5岁！\n"
+        f"每天和我一起学日语吧！📖\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"📌 **每日任务**\n"
+        f"1. 📖 打开 H5 学习 → 点这里\n"
+        f"2. 🎤 跟着朗读发音\n"
+        f"3. ✅ 学完告诉我「**打卡**」\n\n"
+        f"📊 说「**进度**」看你的学习报告\n"
+        f"🎯 说「**考考我**」我来出题\n"
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"{'🔥 你已经在坚持第 ' + str(streak) + ' 天了！' if streak > 0 else '💪 今天开始第一天吧！'}"
+    )
 
 
 # ─── 2. 开始教学 ─────────────────────────────
@@ -364,22 +362,19 @@ def _start_review(user_id: str) -> str:
 
 # ─── 兜底回复 ─────────────────────────────────
 def _fallback_reply(user_id: str) -> str:
-    state = get_state(user_id)
-    name = f" {state.get('nickname', '')}"
-
     replies = [
-        f"😊 没听懂……{name}可以试试说：\n"
-        "• 「教我」— 学新单词\n"
-        "• 「考考我」— 我来出题\n"
-        "• 「小新」— 听小新说话\n"
-        "• 「打卡」— 记录学习\n"
-        "• 「进度」— 查看成就",
+        "😊 试试这样做：\n"
+        "• 学完了说「**打卡**」\n"
+        "• 学新词说「**教我**」\n"
+        "• 考考我说「**考考我**」\n"
+        "• 看进度说「**进度**」",
 
-        f"🤔 嗯……我不太明白{name}的意思。\n"
-        "试试跟我说「教我」开始学日语吧！",
+        "📖 **每日任务**：\n"
+        "1️⃣ 打开 H5 学习：https://japanese-bot-g5pq.onrender.com/learn\n"
+        "2️⃣ 学完回来说「**打卡**」🔥",
 
-        f"📖{name}想学什么？\n"
-        "说「教我」我教你新单词！\n"
-        "说「考考我」我帮你测试！",
+        "💪 今天打卡了吗？\n"
+        "说「**打卡**」记录学习！\n"
+        "说「**进度**」看成就！🎯",
     ]
     return random.choice(replies)

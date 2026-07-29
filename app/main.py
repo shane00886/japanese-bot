@@ -33,8 +33,33 @@ async def lifespan(app: FastAPI):
     pathlib.Path("data").mkdir(exist_ok=True)
     init_db()
     init_course_data()
+
+    # 启动每日推送调度
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from app.services.push_service import push_morning, push_evening_report
+
+        scheduler = BackgroundScheduler()
+
+        # 早8点：早安提醒 + 打卡引导
+        scheduler.add_job(push_morning, 'cron', hour=8, minute=0, id='morning_push')
+        # 晚8点：学习战报
+        scheduler.add_job(push_evening_report, 'cron', hour=20, minute=0, id='evening_push')
+
+        scheduler.start()
+        print("✅ 每日推送服务已启动（08:00早安 / 20:00战报）")
+        app.state.scheduler = scheduler
+    except Exception as e:
+        print(f"⚠️ 推送服务启动失败: {e}")
+
     print(f"🤖 {settings.BOT_NAME} ready!")
     yield
+
+    # 关闭调度器
+    try:
+        app.state.scheduler.shutdown()
+    except:
+        pass
     print("🤖 Shutting down...")
 
 
