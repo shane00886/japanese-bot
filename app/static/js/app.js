@@ -22,11 +22,12 @@ function setVoiceMode(mode) {
 }
 
 // ═══════════════════════════════════════════
-// 🎵 语音朗读（双引擎）
+// 🎵 语音朗读（单引擎 + 防重叠）
 // ═══════════════════════════════════════════
 
 let _audioCtx = null;
 const _audioCache = {};
+let _lastSource = null;  // 当前播放的音频源
 
 function getAudioContext() {
     if (!_audioCtx) {
@@ -36,14 +37,27 @@ function getAudioContext() {
     return _audioCtx;
 }
 
-function speak(text, rate = 0.9) {
-    if (!text) return;
-    // 统一用 Web Audio API 播放服务端 TTS（兼容所有浏览器，无重音）
-    speakServer(text);
+function speakStop() {
+    // 停掉上一个
+    if (_lastSource) {
+        try { _lastSource.stop(); } catch(e) {}
+        _lastSource = null;
+    }
+    _speakFetchId = 0;
 }
 
-async function speakServer(text) {
+let _speakFetchId = 0;
+
+function speak(text, rate = 0.9) {
     if (!text) return;
+    speakStop();  // 取消之前的播放
+
+    const id = ++_speakFetchId;
+    speakServer(text, id);
+}
+
+async function speakServer(text, fetchId) {
+    if (!text || !fetchId) return;
     try {
         const ctx = getAudioContext();
         let buffer = _audioCache[text];
@@ -51,17 +65,21 @@ async function speakServer(text) {
             const res = await fetch(`/api/tts?text=${encodeURIComponent(text)}&t=${Date.now()}`);
             if (!res.ok) return;
             const arr = await res.arrayBuffer();
+            if (_speakFetchId !== fetchId) return; // 已被新请求取消
             buffer = await ctx.decodeAudioData(arr);
             _audioCache[text] = buffer;
         }
+        if (_speakFetchId !== fetchId) return; // 已被取消
+
         const source = ctx.createBufferSource();
+        _lastSource = source;
         source.buffer = buffer;
-        // 根据音色模式调节播放速度（模拟音高变化）
         const pr = voiceMode === 'shinchan' ? 1.4 :
                    voiceMode === 'misae' ? 0.75 : 1.0;
         source.playbackRate.value = pr;
         source.connect(ctx.destination);
         source.start();
+        source.onended = () => { if (_lastSource === source) _lastSource = null; };
     } catch(e) {}
 }
 
