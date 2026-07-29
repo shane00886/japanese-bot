@@ -200,6 +200,22 @@
 
 </div>
 
+<!-- 🎯 AI对话机器人 -->
+<div class="chat-bubble" id="chatBubble" onclick="toggleChat()">💬</div>
+<div class="chat-panel" id="chatPanel">
+    <div class="chat-header">
+        <span>🎌 しんちゃん先生</span>
+        <span onclick="toggleChat()" style="cursor:pointer;font-size:18px;">✕</span>
+    </div>
+    <div class="chat-msgs" id="chatMsgs">
+        <div class="chat-msg bot">こんにちは！我是しんちゃん！有什么问题可以问我哦！😊</div>
+    </div>
+    <div class="chat-input-area">
+        <input class="chat-input" id="chatInput" placeholder="打字问我……" onkeydown="if(event.key==='Enter')sendChat()">
+        <button class="chat-send" onclick="sendChat()">发送</button>
+    </div>
+</div>
+
 <nav class="bottom-nav">
     <a class="nav-item active" href="#" onclick="navigate('home')" data-page="home"><span class="nav-icon">🏠</span> 首页</a>
     <a class="nav-item" href="#" onclick="navigate('game')" data-page="game"><span class="nav-icon">⚡</span> 单词</a>

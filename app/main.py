@@ -341,6 +341,57 @@ def api_checkin(user_id: str):
     return {"ok": True, "streak": p["streak_days"], "xp": p["xp"]}
 
 
+@app.post("/api/complete/{user_id}/{lesson_id}")
+def api_complete_lesson(user_id: str, lesson_id: str):
+    """完成课程，自动解锁下一课"""
+    from app.models.database import get_connection
+    from app.services.lesson_service import add_xp, get_user_progress
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # 记录完成
+    cursor.execute(
+        "INSERT OR IGNORE INTO daily_practice (user_id, lesson_id, ptype, score, total) VALUES (?, ?, ?, ?, ?)",
+        (user_id, lesson_id, "lesson", 10, 10)
+    )
+    conn.commit()
+    conn.close()
+
+    # 加经验
+    add_xp(user_id, 15)
+
+    p = get_user_progress(user_id)
+    return {
+        "ok": True,
+        "xp": p["xp"],
+        "completed": p["completed_lessons"],
+        "current_lesson": {
+            "id": p["current_lesson"]["lesson_id"] if p["current_lesson"] else None,
+            "title": p["current_lesson"]["title"] if p["current_lesson"] else None,
+        } if p["current_lesson"] else None,
+        "progress_pct": p["progress_pct"],
+    }
+
+
+# ═══════════════════════════════════════════
+# AI 聊天 API（H5 页面对话机器人）
+# ═══════════════════════════════════════════
+
+@app.post("/api/chat")
+async def api_chat(request: Request):
+    """H5 页面内嵌对话机器人"""
+    body = await request.json()
+    text = body.get("text", "").strip()
+    user_id = body.get("user_id", "h5_user")
+    if not text:
+        return {"reply": "😊 你想学什么日语呢？说「教我」开始吧！"}
+
+    from app.services.ai_chat import process_smart
+    reply = process_smart(user_id, text)
+    return {"reply": reply}
+
+
 @app.post("/api/test/send")
 def api_test_send():
     """测试发送消息到钉钉群"""

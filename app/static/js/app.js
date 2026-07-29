@@ -196,7 +196,7 @@ let userState = {
 // === 页面切换 ===
 async function navigate(page) {
     await loadLessons();
-    document.querySelectorAll(\'.page\').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     document.getElementById(`page-${page}`).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
@@ -207,6 +207,72 @@ async function navigate(page) {
     if (page === 'game') startGame();
     if (page === 'speak') startSpeak();
     if (page === 'listen') startListen();
+}
+
+// ═══════════════════════════════════════════
+// 🎯 AI对话机器人
+// ═══════════════════════════════════════════
+
+function toggleChat() {
+    const p = document.getElementById('chatPanel');
+    const isOpen = p.style.display === 'flex';
+    p.style.display = isOpen ? 'none' : 'flex';
+    if (!isOpen) setTimeout(() => document.getElementById('chatInput').focus(), 300);
+}
+
+async function sendChat() {
+    const input = document.getElementById('chatInput');
+    const text = input.value.trim();
+    if (!text) return;
+
+    const msgs = document.getElementById('chatMsgs');
+    msgs.innerHTML += `<div class="chat-msg user">${text}</div>`;
+    input.value = '';
+    msgs.innerHTML += `<div class="chat-msg bot" style="color:#999;">🤔 思考中...</div>`;
+    msgs.scrollTop = msgs.scrollHeight;
+
+    try {
+        const userId = localStorage.getItem('jp-user-id') || 'h5_' + Date.now();
+        localStorage.setItem('jp-user-id', userId);
+        const resp = await fetch('/api/chat', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({text, user_id: userId})
+        });
+        const data = await resp.json();
+
+        // 移除思考中气泡
+        msgs.removeChild(msgs.lastChild);
+        msgs.innerHTML += `<div class="chat-msg bot">${data.reply || '😅 没听清，再说一遍？'}</div>`;
+    } catch(e) {
+        msgs.removeChild(msgs.lastChild);
+        msgs.innerHTML += `<div class="chat-msg bot">😅 网络有点问题，等会再问我吧！</div>`;
+    }
+    msgs.scrollTop = msgs.scrollHeight;
+}
+
+// ═══════════════════════════════════════════
+// ✅ 任务完成推进
+// ═══════════════════════════════════════════
+
+async function completeLesson(lessonId) {
+    try {
+        const uid = localStorage.getItem('jp-user-id') || 'h5_' + Date.now();
+        const resp = await fetch(`/api/complete/${uid}/${lessonId}`, {method: 'POST'});
+        const data = await resp.json();
+        userState.xp = data.xp;
+        userState.completedLessons = data.completed;
+        if (data.current_lesson) {
+            userState.currentLesson = parseInt(data.current_lesson.id.replace('n5_', ''));
+        }
+        // 刷新页面
+        renderProfile();
+        renderMap();
+        navigate('home');
+        return data;
+    } catch(e) {
+        console.error('完成失败:', e);
+    }
 }
 
 // === 首页 ===
