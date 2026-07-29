@@ -90,7 +90,7 @@ function speakText(element) {
 
 // 点击播放按钮朗读
 document.addEventListener('click', function(e) {
-    const btn = e.target.closest('.speak-btn, .voice-btn');
+    const btn = e.target.closest('.speak-btn, .voice-btn, .play-btn');
     if (btn) {
         e.preventDefault();
         if (btn.classList.contains('voice-btn')) {
