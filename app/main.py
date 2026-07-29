@@ -344,10 +344,12 @@ def api_checkin(user_id: str):
 @app.post("/api/complete/{user_id}/{lesson_id}")
 def api_complete_lesson(user_id: str, lesson_id: str):
     """完成课程，自动解锁下一课"""
+    from datetime import date
     from app.models.database import get_connection
     from app.services.lesson_service import add_xp, get_user_progress
 
-    from datetime import date
+    # 先确保用户存在
+    get_user_progress(user_id)
 
     conn = get_connection()
     cursor = conn.cursor()
