@@ -193,15 +193,11 @@ def ask_ai(user_message: str, user_id: str = "") -> str:
 
 
 def add_audio_link(text: str) -> str:
-    """在回复中添加发音链接（打开播放页自动朗读）"""
-    import re
-    # 提取回复中的日语词
-    jp_words = re.findall(r'[一-龠ぁ-んァ-ヶーa-zA-Z]+', text.split('\n')[0])
-    if jp_words:
-        word = jp_words[0]
-        play_url = f"{settings.BASE_URL}/play?text={urllib.parse.quote(word)}"
-        return text + f"\n🔊 [{word} 点我听]({play_url})"
-    return text
+    """在回复中添加发音链接（播放完整句子）"""
+    # 播放整个回复内容的前120个字
+    full_text = text.split('\n')[0][:120]
+    play_url = f"{settings.BASE_URL}/play?text={urllib.parse.quote(full_text)}"
+    return text + f"\n🔊 [点我听全句]({play_url})"
 
 
 def process_smart(user_id: str, text: str) -> str:
