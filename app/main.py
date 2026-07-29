@@ -316,6 +316,23 @@ def api_get_lessons():
     return {"lessons": lessons}
 
 
+@app.get("/api/lesson/{lesson_id}")
+def api_get_lesson(lesson_id: str):
+    """获取单个课程详情（含单词）"""
+    for l in N5_LESSONS:
+        if l["lesson_id"] == lesson_id:
+            return {
+                "lesson_id": l["lesson_id"],
+                "title": l["title"],
+                "chapter": l["chapter"],
+                "description": l["description"],
+                "shinchan_line": l.get("shinchan_line", ""),
+                "grammar": l["grammar_points"],
+                "vocabulary": l["vocabulary"],
+            }
+    return {"error": "lesson not found"}
+
+
 @app.post("/api/checkin/{user_id}")
 def api_checkin(user_id: str):
     """打卡"""

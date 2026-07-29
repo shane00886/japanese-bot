@@ -109,58 +109,55 @@ if (window.speechSynthesis) {
 }
 
 // === 课程数据（学习内容保留日语） ===
-const LESSONS = [
-    { id: 'n5_01', no: 1, title: '冒险开始', chapter: '开学季', desc: '自我介绍、数字、颜色', emoji: '🌸',
-      jp_title: '冒険の始まり',
-      vocab: [
-        { jp: '私', kana: 'わたし', cn: '我' },
-        { jp: '名前', kana: 'なまえ', cn: '名字' },
-        { jp: '学校', kana: 'がっこう', cn: '学校' },
-        { jp: '先生', kana: 'せんせい', cn: '老师' },
-        { jp: '友達', kana: 'ともだち', cn: '朋友' },
-        { jp: '一年生', kana: 'いちねんせい', cn: '一年级' },
-    ]},
-    { id: 'n5_02', no: 2, title: '小新的一天', chapter: '蜡笔小新', desc: '起床、上学、睡觉', emoji: '🌞',
-      jp_title: 'しんちゃんの一日',
-      vocab: [
-        { jp: '朝', kana: 'あさ', cn: '早上' },
-        { jp: '昼', kana: 'ひる', cn: '中午' },
-        { jp: '夜', kana: 'よる', cn: '晚上' },
-        { jp: '起きる', kana: 'おきる', cn: '起床' },
-        { jp: '寝る', kana: 'ねる', cn: '睡觉' },
-        { jp: '学校', kana: 'がっこう', cn: '学校' },
-    ]},
-    { id: 'n5_03', no: 3, title: '生日派对', chapter: '生日', desc: '日期、礼物、食物', emoji: '🎂',
-      jp_title: 'お誕生日パーティー',
-      vocab: [
-        { jp: '誕生日', kana: 'たんじょうび', cn: '生日' },
-        { jp: 'プレゼント', kana: 'ぷれぜんと', cn: '礼物' },
-        { jp: 'ケーキ', kana: 'けーき', cn: '蛋糕' },
-        { jp: '楽しい', kana: 'たのしい', cn: '快乐' },
-        { jp: '嬉しい', kana: 'うれしい', cn: '开心' },
-        { jp: '欲しい', kana: 'ほしい', cn: '想要' },
-    ]},
-    { id: 'n5_04', no: 4, title: '校园生活', chapter: '学校', desc: '教室、科目、活动', emoji: '📚',
-      jp_title: '学校の一日',
-      vocab: [
-        { jp: '教室', kana: 'きょうしつ', cn: '教室' },
-        { jp: '本', kana: 'ほん', cn: '书' },
-        { jp: '勉強', kana: 'べんきょう', cn: '学习' },
-        { jp: '絵', kana: 'え', cn: '画' },
-        { jp: '歌', kana: 'うた', cn: '歌' },
-        { jp: '遊ぶ', kana: 'あそぶ', cn: '玩' },
-    ]},
-    { id: 'n5_05', no: 5, title: '拉面馆', chapter: '美食', desc: '点餐、味道、价格', emoji: '🍜',
-      jp_title: 'ラーメン屋さんへ',
-      vocab: [
-        { jp: 'ラーメン', kana: 'らーめん', cn: '拉面' },
-        { jp: '美味しい', kana: 'おいしい', cn: '好吃' },
-        { jp: '値段', kana: 'ねだん', cn: '价格' },
-        { jp: '水', kana: 'みず', cn: '水' },
-        { jp: 'メニュー', kana: 'めにゅー', cn: '菜单' },
-        { jp: 'お箸', kana: 'おはし', cn: '筷子' },
-    ]},
-];
+// === 课程数据（从API动态加载） ===
+let LESSONS = [];
+let _allWords = [];
+let lessonsLoaded = false;
+
+async function loadLessons() {
+    if (lessonsLoaded) return LESSONS;
+    try {
+        const resp = await fetch('/api/lessons');
+        const data = await resp.json();
+        const list = data.lessons || [];
+
+        LESSONS = list.map(l => ({
+            id: l.id,
+            no: l.no,
+            title: l.title,
+            chapter: l.chapter,
+            desc: l.desc,
+            emoji: '📖',
+            jp_title: l.title,
+            vocab_count: l.vocab_count,
+            vocab: []
+        }));
+
+        // 异步加载每课单词（合并到缓存）
+        for (const l of LESSONS) {
+            try {
+                const r = await fetch('/api/lesson/' + l.id);
+                const d = await r.json();
+                l.vocab = (d.vocabulary || []).map(v => ({
+                    jp: v.japanese, kana: v.kana, cn: v.meaning
+                }));
+                l.vocab.forEach(v => _allWords.push({ ...v, lessonId: l.id }));
+            } catch(e) {}
+        }
+        lessonsLoaded = true;
+    } catch(e) {
+        console.error('课程加载失败:', e);
+        if (LESSONS.length === 0) {
+            LESSONS = [{ id: 'n5_01', no: 1, title: '我的名字', chapter: '开学季', emoji: '🌸', vocab_count: 6, vocab: [] }];
+        }
+    }
+    return LESSONS;
+}
+
+// 防重复加载辅助
+function getAllWordsFromLessons() {
+    return _allWords;
+}
 
 const SHINCHAN_QUOTES = [
     { jp: '「オラはしんのすけ！よろしく頼むゾ！」', cn: '「我是新之助！请多多关照！」' },
@@ -197,8 +194,9 @@ let userState = {
 };
 
 // === 页面切换 ===
-function navigate(page) {
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+async function navigate(page) {
+    await loadLessons();
+    document.querySelectorAll(\'.page\').forEach(p => p.classList.remove('active'));
     document.getElementById(`page-${page}`).classList.add('active');
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
     document.querySelector(`.nav-item[data-page="${page}"]`)?.classList.add('active');
