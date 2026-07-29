@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🔊 听发音</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+    background:linear-gradient(135deg,#FF6B35,#FF8F5E);
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    font-family:-apple-system,sans-serif;padding:20px
+}
+.card{
+    background:rgba(255,255,255,0.95);
+    border-radius:24px;padding:32px;text-align:center;
+    width:100%;max-width:340px;
+    box-shadow:0 8px 40px rgba(0,0,0,0.15)
+}
+.word{
+    font-size:32px;font-weight:700;color:#333;margin:12px 0;
+    line-height:1.4
+}
+.btn-play{
+    width:100px;height:100px;border-radius:50%;
+    background:#FF6B35;border:none;cursor:pointer;
+    font-size:48px;color:white;margin:16px auto;
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 4px 20px rgba(255,107,53,0.4);
+    transition:all 0.2s;user-select:none;-webkit-tap-highlight-color:transparent
+}
+.btn-play:active{transform:scale(0.9)}
+.btn-play.playing{background:#00B894;box-shadow:0 4px 20px rgba(0,184,148,0.4)}
+.status{font-size:14px;color:#999;margin-top:8px}
+.hint{font-size:13px;color:#bbb;margin-top:16px}
+</style>
+</head>
+<body>
+<div class="card">
+    <div style="font-size:48px;margin-bottom:8px;">🔊</div>
+    <div class="word" id="word">...</div>
+    <div style="font-size:16px;color:#666;margin-bottom:8px;" id="meaning"></div>
+    <button class="btn-play" id="playBtn" onclick="playAudio()">▶</button>
+    <div class="status" id="status">点一下播放</div>
+    <div class="hint">* 支持离线播放，点完即听</div>
+</div>
+
+<script>
+const word = decodeURIComponent(location.search.split('text=')[1] || '').split('&')[0] || 'おはよう';
+const meaning = decodeURIComponent(location.search.split('meaning=')[1] || '').split('&')[0] || '';
+document.getElementById('word').textContent = word;
+if (meaning) document.getElementById('meaning').textContent = meaning;
+
+let ctx = null;
+function getCtx() {
+    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+}
+
+async function playAudio() {
+    const btn = document.getElementById('playBtn');
+    const status = document.getElementById('status');
+
+    btn.textContent = '⏳';
+    btn.classList.add('playing');
+    status.textContent = '加载中...';
+
+    try {
+        const c = getCtx();
+        const res = await fetch('/api/tts?text=' + encodeURIComponent(word) + '&t=' + Date.now());
+        const arr = await res.arrayBuffer();
+        const buffer = await c.decodeAudioData(arr);
+
+        btn.textContent = '🔊';
+        status.textContent = '播放中...';
+
+        const source = c.createBufferSource();
+        source.buffer = buffer;
+        source.connect(c.destination);
+        source.start();
+        source.onended = () => {
+            btn.textContent = '▶';
+            btn.classList.remove('playing');
+            status.textContent = '播放完成 ✅';
+            setTimeout(() => { status.textContent = '再点一次播放'; }, 2000);
+        };
+    } catch(e) {
+        btn.textContent = '▶';
+        btn.classList.remove('playing');
+        status.textContent = '播放失败 😅';
+        console.log(e);
+    }
+}
+
+// 自动播放
+setTimeout(() => playAudio(), 500);
+</script>
+</body>
+</html>
