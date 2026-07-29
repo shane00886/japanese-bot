@@ -36,7 +36,14 @@ function getAudioContext() {
     return _audioCtx;
 }
 
+function speak(text, rate = 0.9) {
+    if (!text) return;
+    // 统一用 Web Audio API 播放服务端 TTS（兼容所有浏览器，无重音）
+    speakServer(text);
+}
+
 async function speakServer(text) {
+    if (!text) return;
     try {
         const ctx = getAudioContext();
         let buffer = _audioCache[text];
@@ -49,34 +56,13 @@ async function speakServer(text) {
         }
         const source = ctx.createBufferSource();
         source.buffer = buffer;
+        // 根据音色模式调节播放速度（模拟音高变化）
+        const pr = voiceMode === 'shinchan' ? 1.4 :
+                   voiceMode === 'misae' ? 0.75 : 1.0;
+        source.playbackRate.value = pr;
         source.connect(ctx.destination);
         source.start();
-    } catch(e) {
-        console.log('服务端 TTS 失败:', e.message);
-    }
-}
-
-function speak(text, rate = 0.9) {
-    if (!text) return;
-
-    // 方案1: Web Audio API 解码服务端 MP3（DingTalk 兼容）
-    speakServer(text);
-
-    // 方案2: 浏览器 Speech API（Chrome/Safari）
-    if (window.speechSynthesis) {
-        try {
-            window.speechSynthesis.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'ja-JP'; u.rate = rate; u.volume = 1.0;
-            if (voiceMode === 'shinchan') u.pitch = 2.0;
-            else if (voiceMode === 'misae') u.pitch = 0.7;
-            else u.pitch = 1.0;
-            const voices = window.speechSynthesis.getVoices();
-            const jpVoice = voices.find(v => v.lang.startsWith('ja'));
-            if (jpVoice) u.voice = jpVoice;
-            window.speechSynthesis.speak(u);
-        } catch(e) {}
-    }
+    } catch(e) {}
 }
 
 function speakText(element) {
@@ -616,72 +602,14 @@ function speakPlayback() {
     }
 }
 
-/** ⭐ 自动评分 */
+/** ⭐ 评分 */
 function speakAutoScore() {
-    const s = speakState.sentences[speakState.current];
-    const expected = s.kana || s.jp;
-
     document.getElementById('speak-record-area').style.display = 'none';
     document.getElementById('speak-score-area').style.display = 'block';
     document.getElementById('speak-score-actions').style.display = 'flex';
-    document.getElementById('speak-score-detail').innerHTML = `
-        <div style="text-align:center;padding:20px;">
-            <div style="font-size:24px;margin-bottom:8px;">⏳</div>
-            <div style="font-size:16px;color:var(--text-light);">正在识别你的发音……</div>
-        </div>`;
-
-    // 尝试语音识别
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SR) {
-        const recog = new SR();
-        recog.lang = 'ja-JP';
-        recog.continuous = false;
-        recog.interimResults = false;
-        recog.maxAlternatives = 3;
-
-        let done = false;
-
-        recog.onresult = (event) => {
-            if (done) return; done = true;
-            let heard = '';
-            for (let i = 0; i < event.results.length; i++) {
-                if (event.results[i].isFinal) { heard = event.results[i][0].transcript; break; }
-            }
-            const similarity = speakSimilarity(heard, expected);
-            const score = speakScore(similarity);
-            speakState.totalScore += score.stars;
-            document.getElementById('speak-score-detail').innerHTML = showScoreUI(score, heard);
-            if (!score.pass) {
-                document.getElementById('speak-score-actions').innerHTML =
-                    `<button class="btn btn-outline btn-small" onclick="speakRetry()">🔄 再练一遍</button>` +
-                    `<button class="btn btn-primary btn-small" onclick="speakAdvance()">✅ 我觉得可以了，继续</button>`;
-            } else {
-                document.getElementById('speak-score-actions').innerHTML =
-                    `<button class="btn btn-primary btn-small" onclick="speakAdvance()">✅ 继续下一句</button>`;
-            }
-        };
-
-        recog.onerror = () => {
-            if (done) return; done = true;
-            speakState.totalScore += 2;
-            showManualScore();
-        };
-
-        recog.onend = () => {
-            if (!done) {
-                done = true;
-                speakState.totalScore += 2;
-                showManualScore();
-            }
-        };
-
-        try { recog.start(); } catch(e) { showManualScore(); }
-        // 8秒超时降级
-        setTimeout(() => { if (!done) { done = true; speakState.totalScore += 2; showManualScore(); } }, 8000);
-    } else {
-        speakState.totalScore += 2;
-        showManualScore();
-    }
+    // DingTalk 不支持自动语音识别，直接进手动评分
+    speakState.totalScore += 2;
+    showManualScore();
 }
 
 function showManualScore() {
