@@ -9,14 +9,11 @@
 <body>
 
 <div class="top-bar">
-    <h1>🎌 小新的日语教室</h1>
-    <div class="subtitle">
-        和しんちゃん一起学日语！
-        <span class="voice-selector">
-            <span class="voice-btn active" data-mode="normal" onclick="setVoiceMode('normal')">📖标准</span>
-            <span class="voice-btn" data-mode="shinchan" onclick="setVoiceMode('shinchan')">🦸小新</span>
-            <span class="voice-btn" data-mode="misae" onclick="setVoiceMode('misae')">👩美冴</span>
-        </span>
+    <img src="/static/logo.svg" alt="小新的日语教室" style="display:block;width:100%;max-width:380px;margin:0 auto;padding:8px 0;">
+    <div class="voice-selector" style="margin-top:4px;display:flex;justify-content:center;gap:4px;">
+        <span class="voice-btn active" data-mode="normal" onclick="setVoiceMode('normal')">📖标准</span>
+        <span class="voice-btn" data-mode="shinchan" onclick="setVoiceMode('shinchan')">🦸小新</span>
+        <span class="voice-btn" data-mode="misae" onclick="setVoiceMode('misae')">👩美冴</span>
     </div>
     <div class="speech-status-banner" style="display:none;margin-top:6px;padding:6px 10px;background:#FFE0B2;border-radius:8px;font-size:12px;color:#E65100;">
         ⚠️ 当前浏览器不支持语音朗读，建议使用 Chrome 浏览器打开
